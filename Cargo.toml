@@ -1,6 +1,21 @@
 [package]
-name = "Impatience"
+name = "impatience"
 version = "0.1.0"
 edition = "2024"
+authors = ["foax <a@fo.ax>"]
+description = "A library for instrumentation of event-to-event latency over a network"
+license = "GPL-3.0-ONLY"
+repository = "https://github.com/xfoa/Impatience"
+keywords = ["time", "sync", "udp", "network", "clock"]
+categories = ["network-programming", "date-and-time", "development-tools::profiling"]
+rust-version = "1.95"
+
+[lib]
+name = "impatience"
+path = "src/lib.rs"
+
+[[bin]]
+name = "impatience"
+path = "src/main.rs"
 
 [dependencies]
