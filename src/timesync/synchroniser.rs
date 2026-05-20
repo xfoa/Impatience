@@ -126,6 +126,16 @@ impl TimeSynchroniser {
         self.minimum_one_way_delay_usec
     }
 
+    /// Get the current estimated remote time delta (microseconds).
+    ///
+    /// This is the estimated offset from local time to remote time:
+    /// `remote_time = local_time + remote_time_delta_usec`.
+    /// Returns `0` if not yet synchronised.
+    #[inline]
+    pub fn remote_time_delta_usec(&self) -> u32 {
+        self.remote_time_delta_usec
+    }
+
     /// Compress a local timestamp into a 16-bit remote-time field.
     ///
     /// Returns `None` if not yet synchronised.

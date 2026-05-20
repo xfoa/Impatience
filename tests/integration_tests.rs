@@ -1,5 +1,5 @@
 use impatience::timesync::{Counter16, Counter23, Counter24, TimeSynchroniser, WindowedMinTS24};
-use impatience::timesync::synchroniser::{
+use impatience::timesync::{
     TIME_16_ERROR_BOUND, TIME_23_ERROR_BOUND,
 };
 
