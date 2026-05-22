@@ -2,6 +2,22 @@ use crate::net::traits::{PeerSync, Probe};
 use crate::timesync::Counter24;
 use rkyv::{Archive, Deserialize, Serialize};
 
+impl Packet {
+    pub fn to_bytes(&self) -> Result<Vec<u8>, String> {
+        rkyv::to_bytes::<rkyv::rancor::Error>(self)
+            .map(|v| v.into_vec())
+            .map_err(|e| format!("serialize error: {}", e))
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
+        let archived =
+            rkyv::access::<ArchivedPacket, rkyv::rancor::Error>(bytes)
+                .map_err(|e| format!("access error: {}", e))?;
+        rkyv::deserialize::<Packet, rkyv::rancor::Error>(archived)
+            .map_err(|e| format!("deserialize error: {}", e))
+    }
+}
+
 macro_rules! impl_probe {
     ($ty:ty) => {
         impl Probe for $ty {
