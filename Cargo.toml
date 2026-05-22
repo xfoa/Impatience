@@ -19,4 +19,6 @@ name = "impatience"
 path = "src/main.rs"
 
 [dependencies]
+clap = { version = "4", features = ["derive"] }
+rkyv = "0.8"
 seq-macro = "0.3.6"
