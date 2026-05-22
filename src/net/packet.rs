@@ -5,10 +5,10 @@ use rkyv::{Archive, Deserialize, Serialize};
 macro_rules! impl_probe {
     ($ty:ty) => {
         impl Probe for $ty {
-            fn remote_send_ts24(&self) -> Counter24 {
+            fn remote_send_ts(&self) -> Counter24 {
                 Counter24::new(self.remote_send_ts24)
             }
-            fn set_local_ts24(&mut self, ts: Counter24) {
+            fn set_local_ts(&mut self, ts: Counter24) {
                 self.local_ts24 = ts.to_unsigned();
             }
         }
@@ -27,7 +27,7 @@ pub struct SyncPacket {
 impl_probe!(SyncPacket);
 
 impl PeerSync for SyncPacket {
-    fn min_delta_ts24(&self) -> Counter24 {
+    fn min_delta_ts(&self) -> Counter24 {
         Counter24::new(self.min_delta_ts24)
     }
 }

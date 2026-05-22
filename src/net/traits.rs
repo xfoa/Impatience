@@ -7,30 +7,30 @@ use crate::timesync::Counter24;
 /// passes to [`SyncedClock::update_with_probe`](crate::clock::SyncedClock::update_with_probe),
 /// and a local timestamp field that the sender fills via [`apply_probe`].
 pub trait Probe {
-    fn remote_send_ts24(&self) -> Counter24;
-    fn set_local_ts24(&mut self, ts: Counter24);
+    fn remote_send_ts(&self) -> Counter24;
+    fn set_local_ts(&mut self, ts: Counter24);
 }
 
 /// Stamp `header` with the local probe timestamp derived from `now_usec`.
 ///
 /// Works with any [`Probe`] implementor.
-pub fn apply_probe<D: Probe>(
+pub fn apply_probe(
     clock: &SyncedClock,
-    header: &mut D,
+    header: &mut impl Probe,
     now_usec: u64,
 ) {
-    header.set_local_ts24(clock.get_probe_ts(now_usec));
+    header.set_local_ts(clock.get_probe_ts(now_usec));
 }
 
 /// Consume a remote probe timestamp from `header` and update the clock.
 ///
 /// Works with any [`Probe`] implementor.
-pub fn retrieve_probe<D: Probe>(
+pub fn retrieve_probe(
     clock: &mut SyncedClock,
-    header: &D,
+    header: &impl Probe,
     local_recv_usec: u64,
 ) -> u32 {
-    clock.update_with_probe(header.remote_send_ts24(), local_recv_usec)
+    clock.update_with_probe(header.remote_send_ts(), local_recv_usec)
 }
 
 /// Trait for types representing a time-synchronisation packet.
@@ -40,5 +40,5 @@ pub fn retrieve_probe<D: Probe>(
 /// Unlike probes, sync packets are self-contained, so no apply/retrieve
 /// helper functions are provided.
 pub trait PeerSync {
-    fn min_delta_ts24(&self) -> Counter24;
+    fn min_delta_ts(&self) -> Counter24;
 }
