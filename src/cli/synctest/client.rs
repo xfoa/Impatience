@@ -105,6 +105,7 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
                                 correction,
                                 min_delta,
                                 synced,
+                                c.start_usec() / 1000,
                             )
                         );
                     }
@@ -115,7 +116,7 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
                         let synced = c.is_synchronized();
                         println!(
                             "{}",
-                            common::format_sync_stats("client", min_delta, synced)
+                            common::format_sync_stats("client", min_delta, synced, c.start_usec() / 1000)
                         );
                     }
                     _ => {}

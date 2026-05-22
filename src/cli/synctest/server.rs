@@ -72,6 +72,7 @@ pub fn run(bind_addr: &str, port: u16, sync_interval_ms: u64) {
                         let remote_ms = correction.map(|v| local_ms as i64 + v);
                         let min_delta = c.get_sync_delta().to_unsigned();
                         let synced = c.is_synchronized();
+                        let start_ms = c.start_usec() / 1000;
 
                         let mut pong = PongPacket::default();
                         pong.ping_seq = ping.seq;
@@ -92,6 +93,7 @@ pub fn run(bind_addr: &str, port: u16, sync_interval_ms: u64) {
                                 correction,
                                 min_delta,
                                 synced,
+                                start_ms,
                             )
                         );
                     }
@@ -102,7 +104,7 @@ pub fn run(bind_addr: &str, port: u16, sync_interval_ms: u64) {
                         let synced = c.is_synchronized();
                         println!(
                             "{}",
-                            common::format_sync_stats("server", min_delta, synced)
+                            common::format_sync_stats("server", min_delta, synced, c.start_usec() / 1000)
                         );
                     }
                     _ => {}

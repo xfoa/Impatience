@@ -25,6 +25,12 @@ impl SyncedClock {
         self.start_usec = now_usec;
     }
 
+    /// Return the wall-clock time at which the clock was started.
+    #[inline]
+    pub fn start_usec(&self) -> u64 {
+        self.start_usec
+    }
+
     /// Update the clock with probe data received on a data datagram.
     ///
     /// `remote_send_ts24` is the 24-bit timestamp from the peer's
