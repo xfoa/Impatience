@@ -10,8 +10,10 @@ impl Packet {
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
+        let mut aligned = rkyv::util::AlignedVec::<8>::with_capacity(bytes.len());
+        aligned.extend_from_slice(bytes);
         let archived =
-            rkyv::access::<ArchivedPacket, rkyv::rancor::Error>(bytes)
+            rkyv::access::<ArchivedPacket, rkyv::rancor::Error>(&aligned)
                 .map_err(|e| format!("access error: {}", e))?;
         rkyv::deserialize::<Packet, rkyv::rancor::Error>(archived)
             .map_err(|e| format!("deserialize error: {}", e))

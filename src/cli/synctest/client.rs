@@ -24,6 +24,7 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
     clock.lock().unwrap().start(start_usec);
 
     // --- StartClock handshake ---
+    eprintln!("[client] sending StartClock with start_usec={start_usec}");
     let pkt = StartClockPacket { start_usec };
     let bytes = Packet::StartClock(pkt)
         .to_bytes()
@@ -33,25 +34,46 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
     let mut buf = [0u8; common::MAX_MSG_SIZE];
     let mut acked = false;
     let peer_start: Arc<Mutex<Option<u64>>> = Arc::new(Mutex::new(None));
-    while !acked {
+    let mut handshake_retries = 0;
+    while !acked && handshake_retries < 50 {
         match socket.recv(&mut buf) {
             Ok(n) => {
-                if let Ok(Packet::AckStartClock(ack)) = Packet::from_bytes(&buf[..n]) {
-                    *peer_start.lock().unwrap() = Some(ack.start_usec);
-                    acked = true;
+                eprintln!("[client] received {n} bytes");
+                match Packet::from_bytes(&buf[..n]) {
+                    Ok(Packet::AckStartClock(ack)) => {
+                        eprintln!("[client] got AckStartClock peer_start_usec={}", ack.start_usec);
+                        *peer_start.lock().unwrap() = Some(ack.start_usec);
+                        acked = true;
+                    }
+                    Ok(other) => {
+                        eprintln!("[client] unexpected packet during handshake: {other:?}");
+                    }
+                    Err(e) => {
+                        eprintln!("[client] packet parse error: {e}");
+                    }
                 }
             }
             Err(e)
                 if e.kind() == io::ErrorKind::WouldBlock
                     || e.kind() == io::ErrorKind::TimedOut =>
             {
-                socket
-                    .send(&bytes)
-                    .expect("retry StartClock");
+                handshake_retries += 1;
+                eprintln!("[client] handshake timeout #{handshake_retries}, retrying StartClock");
+                socket.send(&bytes).expect("retry StartClock");
             }
-            Err(_) => break,
+            Err(e) => {
+                eprintln!("[client] handshake recv error: {e}");
+                break;
+            }
         }
     }
+
+    if !acked {
+        eprintln!("[client] handshake failed, aborting");
+        return;
+    }
+
+    eprintln!("[client] handshake complete, starting ping loop");
 
     let socket_send = socket.try_clone().expect("socket clone failed");
     let clock_send = Arc::clone(&clock);
@@ -66,6 +88,8 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
             Count::Finite(n) => n,
             Count::Infinite => u64::MAX,
         };
+
+        eprintln!("[client] send thread: max_pings={max_pings}, interval_ms={interval_ms}");
 
         for _ in 0..max_pings {
             let now = common::now_usec();
@@ -98,6 +122,7 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
             thread::sleep(Duration::from_millis(interval_ms));
         }
 
+        eprintln!("[client] send thread done");
         send_done_flag.store(true, Ordering::SeqCst);
     });
 
@@ -107,7 +132,9 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
         if send_done.load(Ordering::SeqCst) {
             if send_done_time.is_none() {
                 send_done_time = Some(common::now_usec());
+                eprintln!("[client] send_done detected, starting 2s grace period");
             } else if common::now_usec().saturating_sub(send_done_time.unwrap()) > 2_000_000 {
+                eprintln!("[client] grace period expired, exiting");
                 break;
             }
         }
@@ -157,7 +184,12 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
                             )
                         );
                     }
-                    _ => {}
+                    Ok(other) => {
+                        eprintln!("[client] unexpected packet in main loop: {other:?}");
+                    }
+                    Err(e) => {
+                        eprintln!("[client] packet parse error in main loop: {e}");
+                    }
                 }
             }
             Err(e)
@@ -167,10 +199,14 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
                 if send_done_time.is_some()
                     && common::now_usec().saturating_sub(send_done_time.unwrap()) > 2_000_000
                 {
+                    eprintln!("[client] timeout after send_done, exiting");
                     break;
                 }
             }
-            Err(_) => break,
+            Err(e) => {
+                eprintln!("[client] recv error: {e}");
+                break;
+            }
         }
     }
 
