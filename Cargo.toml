@@ -19,3 +19,4 @@ name = "impatience"
 path = "src/main.rs"
 
 [dependencies]
+seq-macro = "0.3.6"

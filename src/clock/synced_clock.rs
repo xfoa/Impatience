@@ -28,7 +28,7 @@ impl SyncedClock {
     /// Update the clock with probe data received on a data datagram.
     ///
     /// `remote_send_ts24` is the 24-bit timestamp from the peer's
-    /// [`get_sync_ts`](SyncedClock::get_sync_ts) call.
+    /// [`get_probe_ts`](SyncedClock::get_probe_ts) call.
     /// `local_recv_usec` is the local wall-clock time when the datagram arrived.
     ///
     /// Returns the estimated one-way delay for this datagram in microseconds,
@@ -47,7 +47,7 @@ impl SyncedClock {
     }
 
     /// Generate the 24-bit timestamp to attach to outgoing data datagrams.
-    pub fn get_sync_ts(&self, now_usec: u64) -> Counter24 {
+    pub fn get_probe_ts(&self, now_usec: u64) -> Counter24 {
         Counter24::new(TimeSynchroniser::local_time_to_datagram_ts24(now_usec))
     }
 

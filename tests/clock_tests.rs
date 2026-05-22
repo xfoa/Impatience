@@ -18,10 +18,10 @@ fn test_not_synchronized_initially() {
 }
 
 #[test]
-fn test_get_sync_ts_matches_ts24() {
+fn test_get_probe_ts_matches_ts24() {
     let clock = SyncedClock::new();
     let now = 1_234_567_890;
-    let ts24 = clock.get_sync_ts(now);
+    let ts24 = clock.get_probe_ts(now);
     assert_eq!(
         ts24,
         Counter24::new(TimeSynchroniser::local_time_to_datagram_ts24(now))
@@ -56,13 +56,13 @@ fn test_basic_synchronization() {
     // Exchange several rounds of probe data
     for _ in 0..10 {
         let (local_a, _local_b) = advance(owd_usec as u64);
-        let ts_a = a.get_sync_ts(local_a);
+        let ts_a = a.get_probe_ts(local_a);
 
         let (_local_a, local_b) = advance(owd_usec as u64);
         b.update_with_probe(ts_a, local_b);
 
         let (_local_a, local_b) = advance(owd_usec as u64);
-        let ts_b = b.get_sync_ts(local_b);
+        let ts_b = b.get_probe_ts(local_b);
 
         let (local_a, _local_b) = advance(owd_usec as u64);
         a.update_with_probe(ts_b, local_a);
