@@ -20,5 +20,6 @@ path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
+paste = "1.0.15"
 rkyv = "0.8"
 seq-macro = "0.3.6"
