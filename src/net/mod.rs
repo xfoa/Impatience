@@ -1,4 +1,4 @@
-mod probe;
-//pub mod packet;
+mod traits;
+pub mod packet;
 
-pub use probe::{apply_probe, retrieve_probe, TimeSyncProbe};
+pub use traits::{apply_probe, retrieve_probe, PeerSync, Probe};

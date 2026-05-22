@@ -1,10 +1,10 @@
-use crate::net::probe::TimeSyncProbe;
+use crate::net::traits::{PeerSync, Probe};
 use crate::timesync::Counter24;
 use rkyv::{Archive, Deserialize, Serialize};
 
 macro_rules! impl_probe {
     ($ty:ty) => {
-        impl TimeSyncProbe for $ty {
+        impl Probe for $ty {
             fn remote_send_ts24(&self) -> Counter24 {
                 Counter24::new(self.remote_send_ts24)
             }
@@ -25,6 +25,12 @@ pub struct SyncPacket {
 }
 
 impl_probe!(SyncPacket);
+
+impl PeerSync for SyncPacket {
+    fn min_delta_ts24(&self) -> Counter24 {
+        Counter24::new(self.min_delta_ts24)
+    }
+}
 
 /// Ping packet with a monotonically increasing sequence number.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Archive, Serialize, Deserialize)]
