@@ -70,6 +70,20 @@ pub struct PongPacket {
 
 impl_probe!(PongPacket);
 
+/// StartClock packet instructing the peer to start its clock at the given time.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Archive, Serialize, Deserialize)]
+#[rkyv(derive(Clone, Copy, Debug, PartialEq, Eq))]
+pub struct StartClockPacket {
+    pub start_usec: u64,
+}
+
+/// AckStartClock packet confirming the peer's clock start time.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Archive, Serialize, Deserialize)]
+#[rkyv(derive(Clone, Copy, Debug, PartialEq, Eq))]
+pub struct AckStartClockPacket {
+    pub start_usec: u64,
+}
+
 /// Unified packet type that can hold any concrete packet.
 #[derive(Clone, Debug, PartialEq, Eq, Archive, Serialize, Deserialize)]
 #[rkyv(derive(Clone, Debug, PartialEq, Eq))]
@@ -77,4 +91,6 @@ pub enum Packet {
     Sync(SyncPacket),
     Ping(PingPacket),
     Pong(PongPacket),
+    StartClock(StartClockPacket),
+    AckStartClock(AckStartClockPacket),
 }
