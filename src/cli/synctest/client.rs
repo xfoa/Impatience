@@ -156,7 +156,7 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
                             let corr_usec = correction_usec.unwrap_or(0);
                             let min_owd_usec = c.minimum_one_way_delay_usec() as i64;
                             let remote_usec = local_usec as i64 + start_delta_usec + corr_usec - min_owd_usec;
-                            remote_usec / 1000
+                            (remote_usec + if remote_usec >= 0 { 500 } else { -500 }) / 1000
                         });
                         let min_delta = c.get_sync_delta().to_unsigned();
                         let synced = c.is_synchronized();

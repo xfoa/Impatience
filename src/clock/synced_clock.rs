@@ -60,7 +60,7 @@ impl SyncedClock {
 
     /// Return the number of whole milliseconds since the clock was started.
     pub fn local_ms(&self, now_usec: u64) -> u64 {
-        now_usec.saturating_sub(self.start_usec) / 1000
+        (now_usec.saturating_sub(self.start_usec) + 500) / 1000
     }
 
     /// Return the estimated correction in milliseconds to apply to local time
