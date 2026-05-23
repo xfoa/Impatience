@@ -1,5 +1,5 @@
 use crate::clock::SyncedClock;
-use crate::net::traits::{apply_probe, retrieve_probe, PeerSync, PeerSyncMut, Probe};
+use crate::net::traits::{apply_peer_sync, apply_probe, retrieve_peer_sync, retrieve_probe, PeerSync, Probe};
 use crate::timesync::Counter24;
 use std::sync::{Arc, Mutex};
 
@@ -76,14 +76,14 @@ impl PeerClock {
     /// Update the clock from an incoming sync packet.
     pub fn on_sync(&self, packet: &impl PeerSync) {
         let mut inner = self.inner.lock().unwrap();
-        inner.clock.update_with_sync(packet.min_delta_ts());
+        retrieve_peer_sync(&mut inner.clock, packet);
     }
 
     /// Stamp an outgoing sync packet with both probe and sync-delta fields.
-    pub fn stamp_sync(&self, packet: &mut (impl Probe + PeerSyncMut), now_usec: u64) {
+    pub fn stamp_sync(&self, packet: &mut (impl Probe + PeerSync), now_usec: u64) {
         let inner = self.inner.lock().unwrap();
         apply_probe(&inner.clock, packet, now_usec);
-        packet.set_min_delta_ts(inner.clock.get_sync_delta());
+        apply_peer_sync(&inner.clock, packet);
     }
 
     /// Local milliseconds elapsed since the clock was started.
@@ -136,6 +136,7 @@ impl PeerClock {
         let local_usec = now_usec.saturating_sub(inner.clock.started_at());
         let start_delta_usec = inner.clock.started_at() as i64 - peer as i64;
         let remote_usec = local_usec as i64 + start_delta_usec + correction_usec + owd_sign * min_owd_usec;
+        // Round instead of truncating
         Some((remote_usec + if remote_usec >= 0 { 500 } else { -500 }) / 1000)
     }
 }

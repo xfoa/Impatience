@@ -37,14 +37,21 @@ pub fn retrieve_probe(
 ///
 /// Sync packets carry the sender's current minimum delta, which the
 /// receiver passes to [`SyncedClock::update_with_sync`](crate::clock::SyncedClock::update_with_sync).
-/// Unlike probes, sync packets are self-contained, so no apply/retrieve
-/// helper functions are provided.
 pub trait PeerSync {
     fn min_delta_ts(&self) -> Counter24;
+    fn set_min_delta_ts(&mut self, ts: Counter24);
 }
 
-/// Trait for types representing a time-synchronisation packet whose
-/// minimum-delta field can be mutated before sending.
-pub trait PeerSyncMut: PeerSync {
-    fn set_min_delta_ts(&mut self, ts: Counter24);
+/// Stamp `header` with the current sync delta derived from `clock`.
+///
+/// Works with any [`PeerSync`] implementor.
+pub fn apply_peer_sync(clock: &SyncedClock, header: &mut impl PeerSync) {
+    header.set_min_delta_ts(clock.get_sync_delta());
+}
+
+/// Consume a peer sync delta from `header` and update the clock.
+///
+/// Works with any [`PeerSync`] implementor.
+pub fn retrieve_peer_sync(clock: &mut SyncedClock, header: &impl PeerSync) {
+    clock.update_with_sync(header.min_delta_ts());
 }

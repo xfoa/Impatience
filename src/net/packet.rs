@@ -1,4 +1,4 @@
-use crate::net::traits::{PeerSync, PeerSyncMut, Probe};
+use crate::net::traits::{PeerSync, Probe};
 use crate::timesync::Counter24;
 use rkyv::{Archive, Deserialize, Serialize};
 
@@ -47,9 +47,7 @@ impl PeerSync for SyncPacket {
     fn min_delta_ts(&self) -> Counter24 {
         Counter24::new(self.min_delta_ts24)
     }
-}
 
-impl PeerSyncMut for SyncPacket {
     fn set_min_delta_ts(&mut self, ts: Counter24) {
         self.min_delta_ts24 = ts.to_unsigned();
     }
