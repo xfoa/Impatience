@@ -15,6 +15,8 @@ pub fn run(bind_addr: &str, port: u16, sync_interval_ms: u64) {
         .set_read_timeout(Some(Duration::from_millis(100)))
         .expect("set_read_timeout failed");
 
+    eprintln!("[server] listening on {bind_addr}:{port}");
+
     let clock = Arc::new(Mutex::new(SyncedClock::new()));
     let client_addr: Arc<Mutex<Option<SocketAddr>>> = Arc::new(Mutex::new(None));
     let clock_started = Arc::new(AtomicBool::new(false));
@@ -61,33 +63,41 @@ pub fn run(bind_addr: &str, port: u16, sync_interval_ms: u64) {
                 match Packet::from_bytes(&buf[..n]) {
                     Ok(Packet::StartClock(start_pkt)) => {
                         let now = common::now_usec();
+                        eprintln!("[server] received StartClock from {addr} peer_started_at={}", start_pkt.started_at);
+
                         let mut c = clock.lock().unwrap();
-                        if !clock_started.load(Ordering::SeqCst) {
-                            c.start(now);
-                            clock_started.store(true, Ordering::SeqCst);
-                        }
-                        *peer_start.lock().unwrap() = Some(start_pkt.start_usec);
+                        // Restart clock every time we receive StartClock
+                        c.start(now);
+                        clock_started.store(true, Ordering::SeqCst);
+                        *peer_start.lock().unwrap() = Some(start_pkt.started_at);
                         drop(c);
 
                         let ack = AckStartClockPacket {
-                            start_usec: now,
+                            started_at: now,
                         };
                         if let Ok(bytes) = Packet::AckStartClock(ack).to_bytes() {
                             let _ = socket.send_to(&bytes, addr);
+                            eprintln!("[server] sent AckStartClock to {addr} our_started_at={now}");
                         }
                     }
                     Ok(Packet::Ping(ping)) => {
                         let now = common::now_usec();
 
                         let mut c = clock.lock().unwrap();
+                        if !clock_started.load(Ordering::SeqCst) {
+                            c.start(now);
+                            clock_started.store(true, Ordering::SeqCst);
+                        }
+
                         let _owd = retrieve_probe(&mut c, &ping, now);
                         let local_ms = c.local_ms(now);
                         let correction = c.correction_ms();
-                        let remote_ms = correction.map(|v| local_ms as i64 + v);
+                        let start_delta_ms = peer_start.lock().unwrap().map(|p| c.started_at() as i64 / 1000 - p as i64 / 1000);
+                        let remote_ms = correction.and_then(|corr| {
+                            start_delta_ms.map(|delta| local_ms as i64 + corr + delta)
+                        });
                         let min_delta = c.get_sync_delta().to_unsigned();
                         let synced = c.is_synchronized();
-                        let start_ms = c.start_usec() / 1000;
-                        let peer_start_ms = peer_start.lock().unwrap().map(|v| v / 1000);
 
                         let mut pong = PongPacket::default();
                         pong.ping_seq = ping.seq;
@@ -108,8 +118,7 @@ pub fn run(bind_addr: &str, port: u16, sync_interval_ms: u64) {
                                 correction,
                                 min_delta,
                                 synced,
-                                start_ms,
-                                peer_start_ms,
+                                start_delta_ms,
                             )
                         );
                     }
@@ -118,19 +127,23 @@ pub fn run(bind_addr: &str, port: u16, sync_interval_ms: u64) {
                         c.update_with_sync(sync_pkt.min_delta_ts());
                         let min_delta = c.get_sync_delta().to_unsigned();
                         let synced = c.is_synchronized();
-                        let peer_start_ms = peer_start.lock().unwrap().map(|v| v / 1000);
+                        let start_delta_ms = peer_start.lock().unwrap().map(|p| c.started_at() as i64 / 1000 - p as i64 / 1000);
                         println!(
                             "{}",
                             common::format_sync_stats(
                                 "server",
                                 min_delta,
                                 synced,
-                                c.start_usec() / 1000,
-                                peer_start_ms,
+                                start_delta_ms,
                             )
                         );
                     }
-                    _ => {}
+                    Ok(other) => {
+                        eprintln!("[server] unexpected packet: {other:?}");
+                    }
+                    Err(e) => {
+                        eprintln!("[server] packet parse error: {e}");
+                    }
                 }
             }
             Err(e)
@@ -139,7 +152,10 @@ pub fn run(bind_addr: &str, port: u16, sync_interval_ms: u64) {
             {
                 // Continue waiting
             }
-            Err(_) => break,
+            Err(e) => {
+                eprintln!("[server] recv error: {e}");
+                break;
+            }
         }
     }
 }

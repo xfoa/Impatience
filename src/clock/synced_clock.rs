@@ -23,11 +23,12 @@ impl SyncedClock {
     /// Record the local wall-clock time at which the clock starts.
     pub fn start(&mut self, now_usec: u64) {
         self.start_usec = now_usec;
+        self.sync = TimeSynchroniser::new();
     }
 
     /// Return the wall-clock time at which the clock was started.
     #[inline]
-    pub fn start_usec(&self) -> u64 {
+    pub fn started_at(&self) -> u64 {
         self.start_usec
     }
 

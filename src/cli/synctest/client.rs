@@ -20,12 +20,12 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
         .expect("set_read_timeout failed");
 
     let clock = Arc::new(Mutex::new(SyncedClock::new()));
-    let start_usec = common::now_usec();
-    clock.lock().unwrap().start(start_usec);
+    let started_at = common::now_usec();
+    clock.lock().unwrap().start(started_at);
 
     // --- StartClock handshake ---
-    eprintln!("[client] sending StartClock with start_usec={start_usec}");
-    let pkt = StartClockPacket { start_usec };
+    eprintln!("[client] sending StartClock with started_at={started_at}");
+    let pkt = StartClockPacket { started_at };
     let bytes = Packet::StartClock(pkt)
         .to_bytes()
         .expect("serialize StartClock");
@@ -41,8 +41,8 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
                 eprintln!("[client] received {n} bytes");
                 match Packet::from_bytes(&buf[..n]) {
                     Ok(Packet::AckStartClock(ack)) => {
-                        eprintln!("[client] got AckStartClock peer_start_usec={}", ack.start_usec);
-                        *peer_start.lock().unwrap() = Some(ack.start_usec);
+                        eprintln!("[client] got AckStartClock from {host}:{port} peer_started_at={}", ack.started_at);
+                        *peer_start.lock().unwrap() = Some(ack.started_at);
                         acked = true;
                     }
                     Ok(other) => {
@@ -82,7 +82,7 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
 
     let send_handle = thread::spawn(move || {
         let mut seq: u32 = 0;
-        let mut next_sync = start_usec.saturating_add(sync_interval_ms * 1000);
+        let mut next_sync = started_at.saturating_add(sync_interval_ms * 1000);
 
         let max_pings = match count {
             Count::Finite(n) => n,
@@ -148,10 +148,12 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
                         let _owd = retrieve_probe(&mut c, &pong, now);
                         let local_ms = c.local_ms(now);
                         let correction = c.correction_ms();
-                        let remote_ms = correction.map(|v| local_ms as i64 + v);
+                        let start_delta_ms = peer_start.lock().unwrap().map(|p| p as i64 / 1000 - c.started_at() as i64 / 1000);
+                        let remote_ms = correction.and_then(|corr| {
+                            start_delta_ms.map(|delta| local_ms as i64 + corr + delta)
+                        });
                         let min_delta = c.get_sync_delta().to_unsigned();
                         let synced = c.is_synchronized();
-                        let peer_start_ms = peer_start.lock().unwrap().map(|v| v / 1000);
                         println!(
                             "{}",
                             common::format_probe_stats(
@@ -162,8 +164,7 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
                                 correction,
                                 min_delta,
                                 synced,
-                                c.start_usec() / 1000,
-                                peer_start_ms,
+                                start_delta_ms,
                             )
                         );
                     }
@@ -172,15 +173,14 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
                         c.update_with_sync(sync_pkt.min_delta_ts());
                         let min_delta = c.get_sync_delta().to_unsigned();
                         let synced = c.is_synchronized();
-                        let peer_start_ms = peer_start.lock().unwrap().map(|v| v / 1000);
+                        let start_delta_ms = peer_start.lock().unwrap().map(|p| p as i64 / 1000 - c.started_at() as i64 / 1000);
                         println!(
                             "{}",
                             common::format_sync_stats(
                                 "client",
                                 min_delta,
                                 synced,
-                                c.start_usec() / 1000,
-                                peer_start_ms,
+                                start_delta_ms,
                             )
                         );
                     }

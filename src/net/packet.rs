@@ -76,14 +76,14 @@ impl_probe!(PongPacket);
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Archive, Serialize, Deserialize)]
 #[rkyv(derive(Clone, Copy, Debug, PartialEq, Eq))]
 pub struct StartClockPacket {
-    pub start_usec: u64,
+    pub started_at: u64,
 }
 
 /// AckStartClock packet confirming the peer's clock start time.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Archive, Serialize, Deserialize)]
 #[rkyv(derive(Clone, Copy, Debug, PartialEq, Eq))]
 pub struct AckStartClockPacket {
-    pub start_usec: u64,
+    pub started_at: u64,
 }
 
 /// Unified packet type that can hold any concrete packet.
