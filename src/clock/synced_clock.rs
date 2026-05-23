@@ -88,6 +88,12 @@ impl SyncedClock {
         self.sync.min_delta_ts24()
     }
 
+    /// Returns the minimum one-way delay seen so far (microseconds).
+    #[inline]
+    pub fn minimum_one_way_delay_usec(&self) -> u32 {
+        self.sync.minimum_one_way_delay_usec()
+    }
+
     /// Returns `true` if the clock has received enough data to be
     /// synchronised with its peer.
     #[inline]

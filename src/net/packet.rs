@@ -24,10 +24,10 @@ macro_rules! impl_probe {
     ($ty:ty) => {
         impl Probe for $ty {
             fn remote_send_ts(&self) -> Counter24 {
-                Counter24::new(self.remote_send_ts24)
+                Counter24::new(self.probe_ts24)
             }
             fn set_local_ts(&mut self, ts: Counter24) {
-                self.local_ts24 = ts.to_unsigned();
+                self.probe_ts24 = ts.to_unsigned();
             }
         }
     };
@@ -37,8 +37,7 @@ macro_rules! impl_probe {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Archive, Serialize, Deserialize)]
 #[rkyv(derive(Clone, Copy, Debug, PartialEq, Eq))]
 pub struct SyncPacket {
-    pub remote_send_ts24: u32,
-    pub local_ts24: u32,
+    pub probe_ts24: u32,
     pub min_delta_ts24: u32,
 }
 
@@ -54,8 +53,7 @@ impl PeerSync for SyncPacket {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Archive, Serialize, Deserialize)]
 #[rkyv(derive(Clone, Copy, Debug, PartialEq, Eq))]
 pub struct PingPacket {
-    pub remote_send_ts24: u32,
-    pub local_ts24: u32,
+    pub probe_ts24: u32,
     pub seq: u32,
 }
 
@@ -65,8 +63,7 @@ impl_probe!(PingPacket);
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Archive, Serialize, Deserialize)]
 #[rkyv(derive(Clone, Copy, Debug, PartialEq, Eq))]
 pub struct PongPacket {
-    pub remote_send_ts24: u32,
-    pub local_ts24: u32,
+    pub probe_ts24: u32,
     pub ping_seq: u32,
 }
 
