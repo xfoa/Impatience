@@ -6,7 +6,7 @@ impl Packet {
     pub fn to_bytes(&self) -> Result<Vec<u8>, String> {
         rkyv::to_bytes::<rkyv::rancor::Error>(self)
             .map(|v| v.into_vec())
-            .map_err(|e| format!("serialize error: {}", e))
+            .map_err(|e| format!("serialise error: {}", e))
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
@@ -16,7 +16,7 @@ impl Packet {
             rkyv::access::<ArchivedPacket, rkyv::rancor::Error>(&aligned)
                 .map_err(|e| format!("access error: {}", e))?;
         rkyv::deserialize::<Packet, rkyv::rancor::Error>(archived)
-            .map_err(|e| format!("deserialize error: {}", e))
+            .map_err(|e| format!("deserialise error: {}", e))
     }
 }
 

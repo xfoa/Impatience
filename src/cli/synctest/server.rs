@@ -83,7 +83,7 @@ pub fn run(bind_addr: &str, port: u16, sync_interval_ms: u64) {
                         let local_ms = clock.local_ms(now);
                         let correction = clock.correction_ms();
                         let min_delta = clock.min_delta().to_unsigned();
-                        let synced = clock.is_synchronized();
+                        let synced = clock.is_synchronised();
                         let start_delta_ms = clock.start_delta_ms();
                         let remote_ms = clock.remote_ms(now, 1);
 
@@ -112,7 +112,7 @@ pub fn run(bind_addr: &str, port: u16, sync_interval_ms: u64) {
                     Ok(Packet::Sync(sync_pkt)) => {
                         clock.on_sync(&sync_pkt);
                         let min_delta = clock.min_delta().to_unsigned();
-                        let synced = clock.is_synchronized();
+                        let synced = clock.is_synchronised();
                         let start_delta_ms = clock.start_delta_ms();
                         println!(
                             "{}",

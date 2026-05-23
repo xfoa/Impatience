@@ -36,7 +36,7 @@ const SIGN_ROLLOVER_THRESHOLD: u32 = (1u32 << 22) << TIME_23_LOST_BITS;
 /// one-way delay.
 #[derive(Clone, Debug)]
 pub struct TimeSynchroniser {
-    synchronized: bool,
+    synchronised: bool,
     remote_time_delta_usec: u32,
     minimum_one_way_delay_usec: u32,
     windowed_min_ts24_deltas: WindowedMinTS24,
@@ -47,7 +47,7 @@ pub struct TimeSynchroniser {
 impl TimeSynchroniser {
     pub fn new() -> Self {
         Self {
-            synchronized: false,
+            synchronised: false,
             remote_time_delta_usec: 0,
             minimum_one_way_delay_usec: DEFAULT_OWD_USEC,
             windowed_min_ts24_deltas: WindowedMinTS24::new(),
@@ -94,7 +94,7 @@ impl TimeSynchroniser {
 
         let mut network_trip_usec = 0u32;
 
-        if self.synchronized {
+        if self.synchronised {
             network_trip_usec = self.minimum_one_way_delay_usec;
 
             let min_delta_ts24 = self.windowed_min_ts24_deltas.best();
@@ -113,8 +113,8 @@ impl TimeSynchroniser {
     }
 
     #[inline]
-    pub fn is_synchronized(&self) -> bool {
-        self.synchronized
+    pub fn is_synchronised(&self) -> bool {
+        self.synchronised
     }
 
     /// Get the minimum one-way delay seen so far (microseconds).
@@ -141,7 +141,7 @@ impl TimeSynchroniser {
     /// Returns `None` if not yet synchronised.
     #[inline]
     pub fn to_remote_time_16(&self, local_usec: u64) -> Option<u16> {
-        if !self.synchronized {
+        if !self.synchronised {
             return None;
         }
 
@@ -167,7 +167,7 @@ impl TimeSynchroniser {
     /// Returns `None` if not yet synchronised.
     #[inline]
     pub fn to_remote_time_23(&self, local_usec: u64) -> Option<u32> {
-        if !self.synchronized {
+        if !self.synchronised {
             return None;
         }
 
@@ -212,7 +212,7 @@ impl TimeSynchroniser {
         }
         self.minimum_one_way_delay_usec = min_owd_usec;
 
-        self.synchronized = true;
+        self.synchronised = true;
     }
 }
 

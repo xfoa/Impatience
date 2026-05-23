@@ -40,9 +40,9 @@ impl AtomicSynchroniser {
         self.inner.lock().unwrap().min_delta_ts24()
     }
 
-    /// See [`TimeSynchroniser::is_synchronized`].
-    pub fn is_synchronized(&self) -> bool {
-        self.inner.lock().unwrap().is_synchronized()
+    /// See [`TimeSynchroniser::is_synchronised`].
+    pub fn is_synchronised(&self) -> bool {
+        self.inner.lock().unwrap().is_synchronised()
     }
 
     /// See [`TimeSynchroniser::minimum_one_way_delay_usec`].

@@ -86,8 +86,8 @@ fn run_two_rounds(clock_delta: u64, owd_usec: u32) -> bool {
     let mut sync_a = TimeSynchroniser::new();
     let mut sync_b = TimeSynchroniser::new();
 
-    assert!(!sync_a.is_synchronized());
-    assert!(!sync_b.is_synchronized());
+    assert!(!sync_a.is_synchronised());
+    assert!(!sync_b.is_synchronised());
 
     let mut global_usec: u64 = 0;
 
@@ -105,7 +105,7 @@ fn run_two_rounds(clock_delta: u64, owd_usec: u32) -> bool {
         local_usec_b,
     );
     assert_eq!(owd_a_to_b, 0);
-    assert!(!sync_b.is_synchronized());
+    assert!(!sync_b.is_synchronised());
 
     let (_local_usec_a, local_usec_b) = advance(owd_usec as u64);
     let ts_b = TimeSynchroniser::local_time_to_datagram_ts24(local_usec_b);
@@ -116,7 +116,7 @@ fn run_two_rounds(clock_delta: u64, owd_usec: u32) -> bool {
         local_usec_a,
     );
     assert_eq!(owd_b_to_a, 0);
-    assert!(!sync_a.is_synchronized());
+    assert!(!sync_a.is_synchronised());
 
     let (local_usec_a, _local_usec_b) = advance(owd_usec as u64);
     let ts_a = TimeSynchroniser::local_time_to_datagram_ts24(local_usec_a);
@@ -128,10 +128,10 @@ fn run_two_rounds(clock_delta: u64, owd_usec: u32) -> bool {
         local_usec_b,
     );
     assert_eq!(owd_a_to_b, 0);
-    assert!(!sync_b.is_synchronized());
+    assert!(!sync_b.is_synchronised());
 
     sync_b.on_peer_min_delta_ts24(min_delta_ts24_a);
-    assert!(sync_b.is_synchronized());
+    assert!(sync_b.is_synchronised());
 
     let (_local_usec_a, local_usec_b) = advance(owd_usec as u64);
     let ts_b = TimeSynchroniser::local_time_to_datagram_ts24(local_usec_b);
@@ -143,10 +143,10 @@ fn run_two_rounds(clock_delta: u64, owd_usec: u32) -> bool {
         local_usec_a,
     );
     assert_eq!(owd_b_to_a, 0);
-    assert!(!sync_a.is_synchronized());
+    assert!(!sync_a.is_synchronised());
 
     sync_a.on_peer_min_delta_ts24(min_delta_ts24_b);
-    assert!(sync_a.is_synchronized());
+    assert!(sync_a.is_synchronised());
 
     let min_owd_a = sync_a.minimum_one_way_delay_usec();
     let min_owd_b = sync_b.minimum_one_way_delay_usec();

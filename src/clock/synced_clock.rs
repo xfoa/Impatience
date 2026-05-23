@@ -76,7 +76,7 @@ impl SyncedClock {
     ///
     /// Returns `None` if the clock is not yet synchronised.
     pub fn correction_usec(&self) -> Option<i64> {
-        if !self.sync.is_synchronized() {
+        if !self.sync.is_synchronised() {
             return None;
         }
 
@@ -105,8 +105,8 @@ impl SyncedClock {
     /// Returns `true` if the clock has received enough data to be
     /// synchronised with its peer.
     #[inline]
-    pub fn is_synchronized(&self) -> bool {
-        self.sync.is_synchronized()
+    pub fn is_synchronised(&self) -> bool {
+        self.sync.is_synchronised()
     }
 }
 

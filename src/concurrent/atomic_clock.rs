@@ -57,9 +57,9 @@ impl AtomicClock {
         self.inner.lock().unwrap().get_sync_delta()
     }
 
-    /// See [`SyncedClock::is_synchronized`].
-    pub fn is_synchronized(&self) -> bool {
-        self.inner.lock().unwrap().is_synchronized()
+    /// See [`SyncedClock::is_synchronised`].
+    pub fn is_synchronised(&self) -> bool {
+        self.inner.lock().unwrap().is_synchronised()
     }
 }
 

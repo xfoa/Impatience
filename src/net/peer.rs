@@ -107,8 +107,8 @@ impl PeerClock {
     }
 
     /// `true` if the clock is synchronised with its peer.
-    pub fn is_synchronized(&self) -> bool {
-        self.inner.lock().unwrap().clock.is_synchronized()
+    pub fn is_synchronised(&self) -> bool {
+        self.inner.lock().unwrap().clock.is_synchronised()
     }
 
     /// Minimum one-way delay seen so far (microseconds).

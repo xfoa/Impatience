@@ -11,9 +11,9 @@ fn test_local_ms() {
 }
 
 #[test]
-fn test_not_synchronized_initially() {
+fn test_not_synchronised_initially() {
     let clock = SyncedClock::new();
-    assert!(!clock.is_synchronized());
+    assert!(!clock.is_synchronised());
     assert_eq!(clock.correction_ms(), None);
 }
 
@@ -37,7 +37,7 @@ fn is_near(x: u64, y: u64, limit: u64) -> bool {
 }
 
 #[test]
-fn test_basic_synchronization() {
+fn test_basic_synchronisation() {
     let clock_delta: u64 = 10_000; // 10 ms
     let owd_usec: u32 = 5_000; // 5 ms
 
@@ -75,8 +75,8 @@ fn test_basic_synchronization() {
     a.update_with_sync(min_delta_b);
     b.update_with_sync(min_delta_a);
 
-    assert!(a.is_synchronized());
-    assert!(b.is_synchronized());
+    assert!(a.is_synchronised());
+    assert!(b.is_synchronised());
 
     let correction_a = a.correction_ms().unwrap();
     let correction_b = b.correction_ms().unwrap();

@@ -34,7 +34,7 @@ fn atomic_synchroniser_concurrent_updates() {
         h.join().unwrap();
     }
 
-    assert!(sync.min_delta_ts24().to_unsigned() != 0 || !sync.is_synchronized());
+    assert!(sync.min_delta_ts24().to_unsigned() != 0 || !sync.is_synchronised());
 }
 
 #[test]
@@ -70,8 +70,8 @@ fn atomic_clock_concurrent_updates() {
         h.join().unwrap();
     }
 
-    // Should not panic; synchronization state is internally consistent.
-    let _ = clock.is_synchronized();
+    // Should not panic; synchronisation state is internally consistent.
+    let _ = clock.is_synchronised();
     let _ = clock.correction_ms();
     let _ = clock.get_sync_delta();
 }
@@ -125,8 +125,8 @@ fn atomic_clock_full_sync_across_threads() {
     a.update_with_sync(min_delta_b);
     b.update_with_sync(min_delta_a);
 
-    assert!(a.is_synchronized());
-    assert!(b.is_synchronized());
+    assert!(a.is_synchronised());
+    assert!(b.is_synchronised());
 
     let correction_a = a.correction_ms().unwrap();
     let correction_b = b.correction_ms().unwrap();

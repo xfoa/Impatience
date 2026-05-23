@@ -27,7 +27,7 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
     let pkt = StartClockPacket { started_at };
     let bytes = Packet::StartClock(pkt)
         .to_bytes()
-        .expect("serialize StartClock");
+        .expect("serialise StartClock");
     socket.send(&bytes).expect("send StartClock");
 
     let mut buf = [0u8; common::MAX_MSG_SIZE];
@@ -139,7 +139,7 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
                         let local_ms = clock.local_ms(now);
                         let correction = clock.correction_ms();
                         let min_delta = clock.min_delta().to_unsigned();
-                        let synced = clock.is_synchronized();
+                        let synced = clock.is_synchronised();
                         let start_delta_ms = clock.start_delta_ms();
                         let remote_ms = clock.remote_ms(now, -1);
                         println!(
@@ -159,7 +159,7 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
                     Ok(Packet::Sync(sync_pkt)) => {
                         clock.on_sync(&sync_pkt);
                         let min_delta = clock.min_delta().to_unsigned();
-                        let synced = clock.is_synchronized();
+                        let synced = clock.is_synchronised();
                         let start_delta_ms = clock.start_delta_ms();
                         println!(
                             "{}",
