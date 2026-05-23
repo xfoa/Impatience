@@ -68,6 +68,14 @@ impl SyncedClock {
     ///
     /// Returns `None` if the clock is not yet synchronised.
     pub fn correction_ms(&self) -> Option<i64> {
+        self.correction_usec().map(|v| v / 1000)
+    }
+
+    /// Return the estimated correction in microseconds to apply to local time
+    /// to align with the paired remote clock.
+    ///
+    /// Returns `None` if the clock is not yet synchronised.
+    pub fn correction_usec(&self) -> Option<i64> {
         if !self.sync.is_synchronized() {
             return None;
         }
@@ -78,7 +86,7 @@ impl SyncedClock {
         } else {
             ticks
         };
-        Some(((signed_ticks as i64) << TIME_23_LOST_BITS) / 1000)
+        Some((signed_ticks as i64) << TIME_23_LOST_BITS)
     }
 
     /// Returns the current minimum delta (24-bit) for sending to the peer
