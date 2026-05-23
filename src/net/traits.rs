@@ -42,3 +42,9 @@ pub fn retrieve_probe(
 pub trait PeerSync {
     fn min_delta_ts(&self) -> Counter24;
 }
+
+/// Trait for types representing a time-synchronisation packet whose
+/// minimum-delta field can be mutated before sending.
+pub trait PeerSyncMut: PeerSync {
+    fn set_min_delta_ts(&mut self, ts: Counter24);
+}

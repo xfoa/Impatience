@@ -1,7 +1,6 @@
 use crate::cli::synctest::common;
-use impatience::clock::SyncedClock;
 use impatience::net::packet::{AckStartClockPacket, Packet, PongPacket, SyncPacket};
-use impatience::net::traits::{apply_probe, retrieve_probe, PeerSync};
+use impatience::net::PeerClock;
 use std::io;
 use std::net::{SocketAddr, UdpSocket};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -17,16 +16,14 @@ pub fn run(bind_addr: &str, port: u16, sync_interval_ms: u64) {
 
     eprintln!("[server] listening on {bind_addr}:{port}");
 
-    let clock = Arc::new(Mutex::new(SyncedClock::new()));
+    let clock = PeerClock::new();
     let client_addr: Arc<Mutex<Option<SocketAddr>>> = Arc::new(Mutex::new(None));
     let clock_started = Arc::new(AtomicBool::new(false));
-    let peer_start: Arc<Mutex<Option<u64>>> = Arc::new(Mutex::new(None));
 
     let socket_send = socket.try_clone().expect("socket clone failed");
-    let clock_send = Arc::clone(&clock);
+    let clock_send = clock.clone();
     let client_addr_send = Arc::clone(&client_addr);
     let clock_started_send = Arc::clone(&clock_started);
-    let _peer_start_send = Arc::clone(&peer_start);
 
     let _send_handle = thread::spawn(move || {
         loop {
@@ -39,12 +36,9 @@ pub fn run(bind_addr: &str, port: u16, sync_interval_ms: u64) {
             let addr_opt = client_addr_send.lock().unwrap();
             if let Some(addr) = *addr_opt {
                 drop(addr_opt);
-                let c = clock_send.lock().unwrap();
                 let mut pkt = SyncPacket::default();
                 let now = common::now_usec();
-                apply_probe(&c, &mut pkt, now);
-                pkt.min_delta_ts24 = c.get_sync_delta().to_unsigned();
-                drop(c);
+                clock_send.stamp_sync(&mut pkt, now);
 
                 if let Ok(bytes) = Packet::Sync(pkt).to_bytes() {
                     let _ = socket_send.send_to(&bytes, addr);
@@ -65,12 +59,9 @@ pub fn run(bind_addr: &str, port: u16, sync_interval_ms: u64) {
                         let now = common::now_usec();
                         eprintln!("[server] received StartClock from {addr} peer_started_at={}", start_pkt.started_at);
 
-                        let mut c = clock.lock().unwrap();
-                        // Restart clock every time we receive StartClock
-                        c.start(now);
+                        clock.start(now);
                         clock_started.store(true, Ordering::SeqCst);
-                        *peer_start.lock().unwrap() = Some(start_pkt.started_at);
-                        drop(c);
+                        clock.set_peer_started_at(start_pkt.started_at);
 
                         let ack = AckStartClockPacket {
                             started_at: now,
@@ -83,32 +74,22 @@ pub fn run(bind_addr: &str, port: u16, sync_interval_ms: u64) {
                     Ok(Packet::Ping(ping)) => {
                         let now = common::now_usec();
 
-                        let mut c = clock.lock().unwrap();
                         if !clock_started.load(Ordering::SeqCst) {
-                            c.start(now);
+                            clock.start(now);
                             clock_started.store(true, Ordering::SeqCst);
                         }
 
-                        let _owd = retrieve_probe(&mut c, &ping, now);
-                        let local_ms = c.local_ms(now);
-                        let correction = c.correction_ms();
-                        let correction_usec = c.correction_usec();
-                        let start_delta_ms = peer_start.lock().unwrap().map(|p| (c.started_at() as i64 - p as i64) / 1000);
-                        let remote_ms = peer_start.lock().unwrap().map(|p| {
-                            let local_usec = now - c.started_at();
-                            let start_delta_usec = c.started_at() as i64 - p as i64;
-                            let corr_usec = correction_usec.unwrap_or(0);
-                            let min_owd_usec = c.minimum_one_way_delay_usec() as i64;
-                            let remote_usec = local_usec as i64 + start_delta_usec + corr_usec + min_owd_usec;
-                            (remote_usec + if remote_usec >= 0 { 500 } else { -500 }) / 1000
-                        });
-                        let min_delta = c.get_sync_delta().to_unsigned();
-                        let synced = c.is_synchronized();
+                        let _owd = clock.on_probe(&ping, now);
+                        let local_ms = clock.local_ms(now);
+                        let correction = clock.correction_ms();
+                        let min_delta = clock.min_delta().to_unsigned();
+                        let synced = clock.is_synchronized();
+                        let start_delta_ms = clock.start_delta_ms();
+                        let remote_ms = clock.remote_ms(now, 1);
 
                         let mut pong = PongPacket::default();
                         pong.ping_seq = ping.seq;
-                        apply_probe(&c, &mut pong, now);
-                        drop(c);
+                        clock.stamp_probe(&mut pong, now);
 
                         if let Ok(bytes) = Packet::Pong(pong).to_bytes() {
                             let _ = socket.send_to(&bytes, addr);
@@ -129,11 +110,10 @@ pub fn run(bind_addr: &str, port: u16, sync_interval_ms: u64) {
                         );
                     }
                     Ok(Packet::Sync(sync_pkt)) => {
-                        let mut c = clock.lock().unwrap();
-                        c.update_with_sync(sync_pkt.min_delta_ts());
-                        let min_delta = c.get_sync_delta().to_unsigned();
-                        let synced = c.is_synchronized();
-                        let start_delta_ms = peer_start.lock().unwrap().map(|p| c.started_at() as i64 / 1000 - p as i64 / 1000);
+                        clock.on_sync(&sync_pkt);
+                        let min_delta = clock.min_delta().to_unsigned();
+                        let synced = clock.is_synchronized();
+                        let start_delta_ms = clock.start_delta_ms();
                         println!(
                             "{}",
                             common::format_sync_stats(

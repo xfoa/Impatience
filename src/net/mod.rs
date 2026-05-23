@@ -1,4 +1,6 @@
 pub mod packet;
+pub mod peer;
 pub mod traits;
 
-pub use traits::{apply_probe, retrieve_probe, PeerSync, Probe};
+pub use peer::PeerClock;
+pub use traits::{apply_probe, retrieve_probe, PeerSync, PeerSyncMut, Probe};

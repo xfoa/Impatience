@@ -1,12 +1,11 @@
 use crate::cli::interface::Count;
 use crate::cli::synctest::common;
-use impatience::clock::SyncedClock;
 use impatience::net::packet::{Packet, PingPacket, StartClockPacket, SyncPacket};
-use impatience::net::traits::{apply_probe, retrieve_probe, PeerSync};
+use impatience::net::PeerClock;
 use std::io;
 use std::net::UdpSocket;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
@@ -19,9 +18,9 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
         .set_read_timeout(Some(Duration::from_millis(100)))
         .expect("set_read_timeout failed");
 
-    let clock = Arc::new(Mutex::new(SyncedClock::new()));
+    let clock = PeerClock::new();
     let started_at = common::now_usec();
-    clock.lock().unwrap().start(started_at);
+    clock.start(started_at);
 
     // --- StartClock handshake ---
     eprintln!("[client] sending StartClock with started_at={started_at}");
@@ -33,7 +32,6 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
 
     let mut buf = [0u8; common::MAX_MSG_SIZE];
     let mut acked = false;
-    let peer_start: Arc<Mutex<Option<u64>>> = Arc::new(Mutex::new(None));
     let mut handshake_retries = 0;
     while !acked && handshake_retries < 50 {
         match socket.recv(&mut buf) {
@@ -42,7 +40,7 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
                 match Packet::from_bytes(&buf[..n]) {
                     Ok(Packet::AckStartClock(ack)) => {
                         eprintln!("[client] got AckStartClock from {host}:{port} peer_started_at={}", ack.started_at);
-                        *peer_start.lock().unwrap() = Some(ack.started_at);
+                        clock.set_peer_started_at(ack.started_at);
                         acked = true;
                     }
                     Ok(other) => {
@@ -76,7 +74,7 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
     eprintln!("[client] handshake complete, starting ping loop");
 
     let socket_send = socket.try_clone().expect("socket clone failed");
-    let clock_send = Arc::clone(&clock);
+    let clock_send = clock.clone();
     let send_done = Arc::new(AtomicBool::new(false));
     let send_done_flag = Arc::clone(&send_done);
 
@@ -96,11 +94,7 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
 
             if now >= next_sync {
                 let mut pkt = SyncPacket::default();
-                let c = clock_send.lock().unwrap();
-                apply_probe(&c, &mut pkt, now);
-                pkt.min_delta_ts24 = c.get_sync_delta().to_unsigned();
-                drop(c);
-
+                clock_send.stamp_sync(&mut pkt, now);
                 if let Ok(bytes) = Packet::Sync(pkt).to_bytes() {
                     let _ = socket_send.send(&bytes);
                 }
@@ -108,10 +102,7 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
             }
 
             let mut pkt = PingPacket::default();
-            {
-                let c = clock_send.lock().unwrap();
-                apply_probe(&c, &mut pkt, now);
-            }
+            clock_send.stamp_probe(&mut pkt, now);
             pkt.seq = seq;
 
             if let Ok(bytes) = Packet::Ping(pkt).to_bytes() {
@@ -144,22 +135,13 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
                 match Packet::from_bytes(&buf[..n]) {
                     Ok(Packet::Pong(pong)) => {
                         let now = common::now_usec();
-                        let mut c = clock.lock().unwrap();
-                        let _owd = retrieve_probe(&mut c, &pong, now);
-                        let local_ms = c.local_ms(now);
-                        let correction = c.correction_ms();
-                        let correction_usec = c.correction_usec();
-                        let start_delta_ms = peer_start.lock().unwrap().map(|p| (c.started_at() as i64 - p as i64) / 1000);
-                        let remote_ms = peer_start.lock().unwrap().map(|p| {
-                            let local_usec = now - c.started_at();
-                            let start_delta_usec = c.started_at() as i64 - p as i64;
-                            let corr_usec = correction_usec.unwrap_or(0);
-                            let min_owd_usec = c.minimum_one_way_delay_usec() as i64;
-                            let remote_usec = local_usec as i64 + start_delta_usec + corr_usec - min_owd_usec;
-                            (remote_usec + if remote_usec >= 0 { 500 } else { -500 }) / 1000
-                        });
-                        let min_delta = c.get_sync_delta().to_unsigned();
-                        let synced = c.is_synchronized();
+                        let _owd = clock.on_probe(&pong, now);
+                        let local_ms = clock.local_ms(now);
+                        let correction = clock.correction_ms();
+                        let min_delta = clock.min_delta().to_unsigned();
+                        let synced = clock.is_synchronized();
+                        let start_delta_ms = clock.start_delta_ms();
+                        let remote_ms = clock.remote_ms(now, -1);
                         println!(
                             "{}",
                             common::format_probe_stats(
@@ -175,11 +157,10 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
                         );
                     }
                     Ok(Packet::Sync(sync_pkt)) => {
-                        let mut c = clock.lock().unwrap();
-                        c.update_with_sync(sync_pkt.min_delta_ts());
-                        let min_delta = c.get_sync_delta().to_unsigned();
-                        let synced = c.is_synchronized();
-                        let start_delta_ms = peer_start.lock().unwrap().map(|p| c.started_at() as i64 / 1000 - p as i64 / 1000);
+                        clock.on_sync(&sync_pkt);
+                        let min_delta = clock.min_delta().to_unsigned();
+                        let synced = clock.is_synchronized();
+                        let start_delta_ms = clock.start_delta_ms();
                         println!(
                             "{}",
                             common::format_sync_stats(
