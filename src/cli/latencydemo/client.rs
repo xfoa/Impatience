@@ -89,7 +89,7 @@ pub fn run(host: &str, port: u16, sync_interval_ms: u64, max_delay_ms: u32) {
 
     eprintln!("[client] handshake complete, starting latency demo. Press Escape to exit.");
 
-    let instrument = Profiler::new(clock.clone());
+    let profiler = Profiler::new(clock.clone());
     let pending_spans: Arc<Mutex<impatience::instrumentation::EventTracker<u32, (u32, char, u64)>>> =
         Arc::new(Mutex::new(impatience::instrumentation::EventTracker::new()));
     let exit_flag = Arc::new(AtomicBool::new(false));
@@ -104,7 +104,7 @@ pub fn run(host: &str, port: u16, sync_interval_ms: u64, max_delay_ms: u32) {
     // --- Input thread ---
     let socket_input = socket.try_clone().expect("socket clone failed");
     let clock_input = clock.clone();
-    let instrument_input = instrument.clone();
+    let profiler_input = profiler.clone();
     let pending_input = Arc::clone(&pending_spans);
     let exit_input = Arc::clone(&exit_flag);
     let next_seq_input = Arc::clone(&next_seq);
@@ -144,7 +144,7 @@ pub fn run(host: &str, port: u16, sync_interval_ms: u64, max_delay_ms: u32) {
                     ..
                 })) => {
                     let now_ms = common::now_ms();
-                    let span = instrument_input.start("input-to-print", now_ms);
+                    let span = profiler_input.start("input-to-print", now_ms);
                     let local_ms = clock_input.local_ms(now_ms * 1000);
 
                     let mut rng = rand::thread_rng();
@@ -240,7 +240,7 @@ pub fn run(host: &str, port: u16, sync_interval_ms: u64, max_delay_ms: u32) {
                         for evt in &batch.events {
                             if let Some((span, (delay_ms, ch, input_ms))) = pending.remove(&evt.seq) {
                                 if let Some(latency_ms) =
-                                    instrument.finish_remote(&span, evt.server_print_ms)
+                                    profiler.finish_remote(&span, evt.server_print_ms)
                                 {
                                     let print_ms = evt.server_print_ms;
                                     per_event_latencies.push((evt.seq, delay_ms, latency_ms, ch));
@@ -296,7 +296,7 @@ pub fn run(host: &str, port: u16, sync_interval_ms: u64, max_delay_ms: u32) {
     sync_handle.join().ok();
 
     // --- Generate reports ---
-    let snapshot = instrument.snapshot();
+    let snapshot = profiler.snapshot();
     eprintln!(
         "[client] aggregate: count={} min={:?}ms p50={:?}ms p95={:?}ms p99={:?}ms max={:?}ms",
         snapshot.count, snapshot.min, snapshot.p50, snapshot.p95, snapshot.p99, snapshot.max

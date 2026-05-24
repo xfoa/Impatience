@@ -59,7 +59,7 @@ fn snapshot_from_empty_aggregator() {
 }
 
 #[test]
-fn instrument_record_and_snapshot() {
+fn profiler_record_and_snapshot() {
     let clock = PeerClock::new();
     let inst = Profiler::new(clock);
     inst.record_latency(1);
@@ -73,7 +73,7 @@ fn instrument_record_and_snapshot() {
 }
 
 #[test]
-fn instrument_finish_remote_unsynced_returns_none() {
+fn profiler_finish_remote_unsynced_returns_none() {
     let clock = PeerClock::new();
     let inst = Profiler::new(clock);
     let span = inst.start("click", 0);

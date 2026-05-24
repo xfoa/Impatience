@@ -8,7 +8,7 @@ fn is_near(x: i64, y: i64, limit: i64) -> bool {
 }
 
 #[test]
-fn instrument_event_to_event_latency() {
+fn profiler_event_to_event_latency() {
     let clock_delta_usec: u64 = 10_000; // 10 ms
     let owd_usec: u32 = 5_000; // 5 ms one-way
 

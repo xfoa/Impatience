@@ -82,7 +82,7 @@ pub struct ConsoleReporter;
 impl Reporter for ConsoleReporter {
     fn report(&mut self, snapshot: &Snapshot) {
         if snapshot.count == 0 {
-            eprintln!("[instrument] no samples yet");
+            eprintln!("[profiler] no samples yet");
             return;
         }
         let fmt = |v: Option<u64>| match v {
@@ -90,7 +90,7 @@ impl Reporter for ConsoleReporter {
             None => "n/a".to_string(),
         };
         eprintln!(
-            "[instrument] count={} min={} p50={} p95={} p99={} max={}",
+            "[profiler] count={} min={} p50={} p95={} p99={} max={}",
             snapshot.count,
             fmt(snapshot.min),
             fmt(snapshot.p50),
