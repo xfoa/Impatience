@@ -144,9 +144,8 @@ pub fn run(host: &str, port: u16, sync_interval_ms: u64, max_delay_ms: u32) {
                     ..
                 })) => {
                     let now_ms = common::now_ms();
-                    let now_usec = now_ms * 1000;
-                    let span = instrument_input.start("input-to-print", now_usec);
-                    let local_ms = clock_input.local_ms(now_usec);
+                    let span = instrument_input.start("input-to-print", now_ms);
+                    let local_ms = clock_input.local_ms(now_ms * 1000);
 
                     let mut rng = rand::thread_rng();
                     let delay_ms: u32 = rng.gen_range(0..=max_delay_ms);
@@ -240,16 +239,14 @@ pub fn run(host: &str, port: u16, sync_interval_ms: u64, max_delay_ms: u32) {
                         let mut pending = pending_spans.lock().unwrap();
                         for evt in &batch.events {
                             if let Some((span, (delay_ms, ch, input_ms))) = pending.remove(&evt.seq) {
-                                let server_print_usec = evt.server_print_ms * 1000;
-                                if let Some(latency_usec) =
-                                    instrument.finish_remote(&span, server_print_usec)
+                                if let Some(latency_ms) =
+                                    instrument.finish_remote(&span, evt.server_print_ms)
                                 {
-                                    let latency_ms = latency_usec / 1000;
-                                    let corrected_print_ms = input_ms + latency_ms;
+                                    let print_ms = evt.server_print_ms;
                                     per_event_latencies.push((evt.seq, delay_ms, latency_ms, ch));
                                     print!(
                                         "[client] print seq={} ch='{}' input_time={}ms print_time={}ms random_delay={}ms event_latency={}ms\r\n",
-                                        evt.seq, ch, input_ms, corrected_print_ms, delay_ms, latency_ms
+                                        evt.seq, ch, input_ms, print_ms, delay_ms, latency_ms
                                     );
                                     let _ = std::io::Write::flush(&mut std::io::stdout());
                                 } else {
@@ -300,26 +297,18 @@ pub fn run(host: &str, port: u16, sync_interval_ms: u64, max_delay_ms: u32) {
 
     // --- Generate reports ---
     let snapshot = instrument.snapshot();
-    let snapshot_ms = impatience::instrumentation::Snapshot {
-        count: snapshot.count,
-        min: snapshot.min.map(|v| v / 1000),
-        max: snapshot.max.map(|v| v / 1000),
-        p50: snapshot.p50.map(|v| v / 1000),
-        p95: snapshot.p95.map(|v| v / 1000),
-        p99: snapshot.p99.map(|v| v / 1000),
-    };
     eprintln!(
         "[client] aggregate: count={} min={:?}ms p50={:?}ms p95={:?}ms p99={:?}ms max={:?}ms",
-        snapshot_ms.count, snapshot_ms.min, snapshot_ms.p50, snapshot_ms.p95, snapshot_ms.p99, snapshot_ms.max
+        snapshot.count, snapshot.min, snapshot.p50, snapshot.p95, snapshot.p99, snapshot.max
     );
 
     let report = serde_json::json!({
         "total_events": per_event_latencies.len(),
-        "min_ms": snapshot_ms.min,
-        "p50_ms": snapshot_ms.p50,
-        "p95_ms": snapshot_ms.p95,
-        "p99_ms": snapshot_ms.p99,
-        "max_ms": snapshot_ms.max,
+        "min_ms": snapshot.min,
+        "p50_ms": snapshot.p50,
+        "p95_ms": snapshot.p95,
+        "p99_ms": snapshot.p99,
+        "max_ms": snapshot.max,
         "events": per_event_latencies.iter().map(|(seq, delay, latency, ch)| {
             serde_json::json!({
                 "seq": seq,
@@ -341,7 +330,7 @@ pub fn run(host: &str, port: u16, sync_interval_ms: u64, max_delay_ms: u32) {
         Err(e) => eprintln!("[client] JSON serialize error: {}", e),
     }
 
-    if let Err(e) = generate_html_report(&per_event_latencies, &snapshot_ms) {
+    if let Err(e) = generate_html_report(&per_event_latencies, &snapshot) {
         eprintln!("[client] failed to generate HTML report: {}", e);
     } else {
         eprintln!("[client] wrote latency_report.html");

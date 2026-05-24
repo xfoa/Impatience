@@ -14,24 +14,24 @@ fn event_id_monotonic() {
 
 #[test]
 fn span_elapsed_local() {
-    let span = Span::new(impatience::instrumentation::EventId(1), "test", 1000);
-    assert_eq!(span.elapsed(2000), 1000);
-    assert_eq!(span.elapsed(1000), 0);
-    assert_eq!(span.elapsed(500), 0); // saturating
+    let span = Span::new(impatience::instrumentation::EventId(1), "test", 10);
+    assert_eq!(span.elapsed(20), 10);
+    assert_eq!(span.elapsed(10), 0);
+    assert_eq!(span.elapsed(5), 0); // saturating
 }
 
 #[test]
 fn aggregator_basic_percentiles() {
     let mut agg = LatencyAggregator::new(100);
     for i in 1..=100 {
-        agg.insert(i as u64 * 100);
+        agg.insert(i as u64);
     }
     assert_eq!(agg.count(), 100);
-    assert_eq!(agg.min(), Some(100));
-    assert_eq!(agg.max(), Some(10_000));
-    assert_eq!(agg.p50(), Some(5_050));
-    assert_eq!(agg.p95(), Some(9_505));
-    assert_eq!(agg.p99(), Some(9_901));
+    assert_eq!(agg.min(), Some(1));
+    assert_eq!(agg.max(), Some(100));
+    assert_eq!(agg.p50(), Some(51));
+    assert_eq!(agg.p95(), Some(95));
+    assert_eq!(agg.p99(), Some(99));
 }
 
 #[test]
@@ -62,14 +62,14 @@ fn snapshot_from_empty_aggregator() {
 fn instrument_record_and_snapshot() {
     let clock = PeerClock::new();
     let inst = Instrument::new(clock);
-    inst.record_latency(1_000);
-    inst.record_latency(2_000);
-    inst.record_latency(3_000);
+    inst.record_latency(1);
+    inst.record_latency(2);
+    inst.record_latency(3);
     let snap = inst.snapshot();
     assert_eq!(snap.count, 3);
-    assert_eq!(snap.min, Some(1_000));
-    assert_eq!(snap.p50, Some(2_000));
-    assert_eq!(snap.max, Some(3_000));
+    assert_eq!(snap.min, Some(1));
+    assert_eq!(snap.p50, Some(2));
+    assert_eq!(snap.max, Some(3));
 }
 
 #[test]
@@ -77,6 +77,6 @@ fn instrument_finish_remote_unsynced_returns_none() {
     let clock = PeerClock::new();
     let inst = Instrument::new(clock);
     let span = inst.start("click", 0);
-    // clock is not synchronised → remote_latency_us returns None
-    assert_eq!(inst.finish_remote(&span, 10_000), None);
+    // clock is not synchronised → remote_latency_ms returns None
+    assert_eq!(inst.finish_remote(&span, 10), None);
 }

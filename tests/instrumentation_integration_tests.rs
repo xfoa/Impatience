@@ -9,7 +9,7 @@ fn is_near(x: i64, y: i64, limit: i64) -> bool {
 
 #[test]
 fn instrument_event_to_event_latency() {
-    let clock_delta: u64 = 10_000; // 10 ms
+    let clock_delta_usec: u64 = 10_000; // 10 ms
     let owd_usec: u32 = 5_000; // 5 ms one-way
 
     let mut global_usec: u64 = 0;
@@ -17,13 +17,13 @@ fn instrument_event_to_event_latency() {
     let b = PeerClock::new();
 
     a.start(global_usec);
-    b.start(global_usec + clock_delta);
-    a.set_peer_started_at(global_usec + clock_delta);
+    b.start(global_usec + clock_delta_usec);
+    a.set_peer_started_at(global_usec + clock_delta_usec);
     b.set_peer_started_at(global_usec);
 
     let mut advance = |us: u64| -> (u64, u64) {
         global_usec += us;
-        (global_usec, global_usec + clock_delta)
+        (global_usec, global_usec + clock_delta_usec)
     };
 
     // Synchronise the two clocks first (same pattern as concurrent_tests.rs)
@@ -61,27 +61,28 @@ fn instrument_event_to_event_latency() {
     let inst_a = Instrument::new(a.clone());
     let _inst_b = Instrument::new(b.clone());
 
-    // A clicks at local time `click_a`.
+    // A clicks at local time `click_a` (in ms).
     let (click_a, _) = advance(0);
-    let span = inst_a.start("click-to-injection", click_a);
+    let span = inst_a.start("click-to-injection", click_a / 1000);
 
     // Simulate network delay: one more advance of `owd_usec`.
     let (_, injection_b) = advance(owd_usec as u64);
 
-    // B finishes the event at its local time.
+    // B finishes the event at its local time (in ms).
     // Use inst_a (the local clock that started the span) to compute latency.
-    let latency = inst_a.finish_remote(&span, injection_b);
+    let latency = inst_a.finish_remote(&span, injection_b / 1000);
 
     // The measured latency should be approximately the one-way delay (5 ms).
     assert!(
         latency.is_some(),
         "latency should be Some when clocks are synchronised"
     );
-    let latency_us = latency.unwrap() as i64;
+    let latency_ms = latency.unwrap() as i64;
+    let owd_ms = owd_usec as i64 / 1000;
     assert!(
-        is_near(latency_us, owd_usec as i64, 500),
-        "latency {} not near {} us",
-        latency_us,
-        owd_usec
+        is_near(latency_ms, owd_ms, 1),
+        "latency {} not near {} ms",
+        latency_ms,
+        owd_ms
     );
 }

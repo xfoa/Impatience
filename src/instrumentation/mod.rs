@@ -53,19 +53,19 @@ impl Instrument {
         }
     }
 
-    /// Start a new measurement span at the given local time.
-    pub fn start(&self, name: &'static str, now_usec: u64) -> Span {
+    /// Start a new measurement span at the given local time (milliseconds).
+    pub fn start(&self, name: &'static str, now_ms: u64) -> Span {
         let mut inner = self.inner.lock().unwrap();
         let id = EventId(inner.next_id);
         inner.next_id = inner.next_id.wrapping_add(1);
-        Span::new(id, name, now_usec)
+        Span::new(id, name, now_ms)
     }
 
     /// Record a remote finish for a span and insert the computed latency into the aggregator.
     ///
-    /// Returns `Some(latency_usec)` on success, or `None` if the clock is not yet synchronised.
-    pub fn finish_remote(&self, span: &Span, remote_finish_usec: u64) -> Option<u64> {
-        let latency = span.remote_latency_us(remote_finish_usec, &self.clock)?;
+    /// Returns `Some(latency_ms)` on success, or `None` if the clock is not yet synchronised.
+    pub fn finish_remote(&self, span: &Span, remote_finish_ms: u64) -> Option<u64> {
+        let latency = span.remote_latency_ms(remote_finish_ms, &self.clock)?;
         let clamped_latency = latency.max(0) as u64;
         let mut inner = self.inner.lock().unwrap();
         inner.aggregator.insert(clamped_latency);
@@ -73,9 +73,9 @@ impl Instrument {
     }
 
     /// Record a latency directly (e.g. computed elsewhere) into the aggregator.
-    pub fn record_latency(&self, latency_usec: u64) {
+    pub fn record_latency(&self, latency_ms: u64) {
         let mut inner = self.inner.lock().unwrap();
-        inner.aggregator.insert(latency_usec);
+        inner.aggregator.insert(latency_ms);
     }
 
     /// Capture a snapshot of the current aggregator state.

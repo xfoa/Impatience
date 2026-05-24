@@ -21,10 +21,10 @@ impl LatencyAggregator {
         }
     }
 
-    /// Insert a new latency sample in microseconds.
+    /// Insert a new latency sample in milliseconds.
     ///
     /// Amortised O(log N) because we binary-search the insert position.
-    pub fn insert(&mut self, latency_usec: u64) {
+    pub fn insert(&mut self, latency_ms: u64) {
         if self.ring.len() == self.capacity {
             if let Some(old) = self.ring.pop_front() {
                 if let Ok(idx) = self.sorted.binary_search(&old) {
@@ -33,9 +33,9 @@ impl LatencyAggregator {
             }
         }
 
-        let pos = self.sorted.binary_search(&latency_usec).unwrap_or_else(|e| e);
-        self.sorted.insert(pos, latency_usec);
-        self.ring.push_back(latency_usec);
+        let pos = self.sorted.binary_search(&latency_ms).unwrap_or_else(|e| e);
+        self.sorted.insert(pos, latency_ms);
+        self.ring.push_back(latency_ms);
     }
 
     #[inline]
@@ -48,19 +48,19 @@ impl LatencyAggregator {
         self.sorted.is_empty()
     }
 
-    /// Minimum observed latency in microseconds.
+    /// Minimum observed latency in milliseconds.
     #[inline]
     pub fn min(&self) -> Option<u64> {
         self.sorted.first().copied()
     }
 
-    /// Maximum observed latency in microseconds.
+    /// Maximum observed latency in milliseconds.
     #[inline]
     pub fn max(&self) -> Option<u64> {
         self.sorted.last().copied()
     }
 
-    /// Return the percentile value in microseconds.
+    /// Return the percentile value in milliseconds.
     ///
     /// `p` is in the range `[0.0, 1.0]`.
     /// Uses linear interpolation between adjacent samples.
@@ -88,19 +88,19 @@ impl LatencyAggregator {
         Some(interpolated.round() as u64)
     }
 
-    /// Convenience: p50 in microseconds.
+    /// Convenience: p50 in milliseconds.
     #[inline]
     pub fn p50(&self) -> Option<u64> {
         self.percentile(0.50)
     }
 
-    /// Convenience: p95 in microseconds.
+    /// Convenience: p95 in milliseconds.
     #[inline]
     pub fn p95(&self) -> Option<u64> {
         self.percentile(0.95)
     }
 
-    /// Convenience: p99 in microseconds.
+    /// Convenience: p99 in milliseconds.
     #[inline]
     pub fn p99(&self) -> Option<u64> {
         self.percentile(0.99)

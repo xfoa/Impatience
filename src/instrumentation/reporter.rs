@@ -86,7 +86,7 @@ impl Reporter for ConsoleReporter {
             return;
         }
         let fmt = |v: Option<u64>| match v {
-            Some(us) => format!("{} us", us),
+            Some(ms) => format!("{} ms", ms),
             None => "n/a".to_string(),
         };
         eprintln!(
