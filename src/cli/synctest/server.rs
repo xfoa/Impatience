@@ -1,5 +1,5 @@
 use crate::cli::synctest::common;
-use impatience::net::packet::{AckStartClockPacket, Packet, PongPacket, SyncPacket};
+use impatience::net::packets::{AckStartClockPacket, Packet, PongPacket, SyncPacket};
 use impatience::net::PeerClock;
 use std::io;
 use std::net::{SocketAddr, UdpSocket};

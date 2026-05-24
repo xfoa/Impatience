@@ -1,5 +1,5 @@
 use impatience::clocks::PeerClock;
-use impatience::net::packet::{PingPacket, SyncPacket};
+use impatience::net::packets::{PingPacket, SyncPacket};
 use impatience::net::PeerSync;
 use impatience::timesync::Counter24;
 use std::sync::Arc;

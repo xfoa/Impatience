@@ -1,4 +1,4 @@
-pub mod packet;
+pub mod packets;
 pub mod traits;
 
 pub use crate::clocks::PeerClock;

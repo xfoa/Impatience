@@ -2,7 +2,7 @@ use crate::cli::latencydemo::common;
 use crossterm::event::{Event as CrosstermEvent, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use impatience::instrumentation::{histogram_svg, scatter_plot_svg, Instrument};
-use impatience::net::packet::{
+use impatience::net::packets::{
     InputEventPacket, Packet, StartClockPacket, SyncPacket,
 };
 use impatience::net::PeerClock;

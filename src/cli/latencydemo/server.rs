@@ -1,5 +1,5 @@
 use crate::cli::latencydemo::common;
-use impatience::net::packet::{AckStartClockPacket, Packet, StatsBatchPacket, StatsEvent, SyncPacket};
+use impatience::net::packets::{AckStartClockPacket, Packet, StatsBatchPacket, StatsEvent, SyncPacket};
 use impatience::net::PeerClock;
 use std::io;
 use std::net::{SocketAddr, UdpSocket};

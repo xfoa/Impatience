@@ -1,6 +1,6 @@
 use crate::cli::interface::Count;
 use crate::cli::synctest::common;
-use impatience::net::packet::{Packet, PingPacket, StartClockPacket, SyncPacket};
+use impatience::net::packets::{Packet, PingPacket, StartClockPacket, SyncPacket};
 use impatience::net::PeerClock;
 use std::io;
 use std::net::UdpSocket;
