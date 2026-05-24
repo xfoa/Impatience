@@ -1,4 +1,4 @@
-use crate::clock::SyncedClock;
+use crate::clocks::SyncedClock;
 use crate::timesync::Counter24;
 
 /// Trait for types representing a time-sync probe packet.

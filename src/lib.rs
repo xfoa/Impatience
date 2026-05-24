@@ -1,4 +1,3 @@
-pub mod clock;
-pub mod concurrent;
+pub mod clocks;
 pub mod net;
 pub mod timesync;

@@ -1,4 +1,4 @@
-use crate::clock::SyncedClock;
+use crate::clocks::SyncedClock;
 use crate::net::traits::{apply_peer_sync, apply_probe, retrieve_peer_sync, retrieve_probe, PeerSync, Probe};
 use crate::timesync::Counter24;
 use std::sync::{Arc, Mutex};

@@ -1,4 +1,4 @@
-use impatience::clock::SyncedClock;
+use impatience::clocks::SyncedClock;
 use impatience::timesync::{Counter24, TimeSynchroniser};
 
 #[test]
