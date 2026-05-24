@@ -1,2 +1,4 @@
 /target
 /tmp
+latency_*.json
+latency_*.html

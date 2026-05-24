@@ -1,5 +1,13 @@
 use crate::timesync::Counter24;
 use crate::timesync::{TimeSynchroniser, TIME_23_LOST_BITS};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+fn now_usec() -> u64 {
+SystemTime::now()
+    .duration_since(UNIX_EPOCH)
+    .expect("system clock before Unix epoch")
+    .as_micros() as u64
+}
 
 /// A higher-level clock abstraction that tracks local elapsed time
 /// and maintains a drift estimate with a paired remote clock.
@@ -59,8 +67,8 @@ impl SyncedClock {
     }
 
     /// Return the number of whole milliseconds since the clock was started.
-    pub fn local_ms(&self, now_usec: u64) -> u64 {
-        (now_usec.saturating_sub(self.start_usec) + 500) / 1000
+    pub fn local_ms(&self) -> u32 {
+        (now_usec().saturating_sub(self.start_usec) as u32 + 500) / 1000
     }
 
     /// Return the estimated correction in milliseconds to apply to local time

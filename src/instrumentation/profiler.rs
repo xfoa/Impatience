@@ -45,7 +45,7 @@ impl Profiler {
     }
 
     /// Start a new measurement span at the given local time (milliseconds).
-    pub fn start(&self, name: &'static str, now_ms: u64) -> Span {
+    pub fn start(&self, name: &'static str, now_ms: u32) -> Span {
         let mut inner = self.inner.lock().unwrap();
         let id = EventId(inner.next_id);
         inner.next_id = inner.next_id.wrapping_add(1);
@@ -55,8 +55,8 @@ impl Profiler {
     /// Record a remote finish for a span and insert the computed latency into the aggregator.
     ///
     /// Returns `Some(latency_ms)` on success, or `None` if the clock is not yet synchronised.
-    pub fn finish_remote(&self, span: &Span, remote_finish_ms: u64) -> Option<u64> {
-        let latency = span.remote_latency_ms(remote_finish_ms, &self.clock)?;
+    pub fn finish_remote(&self, span: &mut Span, remote_finish_ms: u32) -> Option<u64> {
+        let latency = span.finish_remote(remote_finish_ms, &self.clock)?;
         let clamped_latency = latency.max(0) as u64;
         let mut inner = self.inner.lock().unwrap();
         inner.aggregator.insert(clamped_latency);

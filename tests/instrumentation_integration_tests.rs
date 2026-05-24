@@ -61,16 +61,16 @@ fn profiler_event_to_event_latency() {
     let inst_a = Profiler::new(a.clone());
     let _inst_b = Profiler::new(b.clone());
 
-    // A clicks at local time `click_a` (in ms).
+    // A clicks at local time `click_a` (elapsed ms since A's clock started).
     let (click_a, _) = advance(0);
-    let span = inst_a.start("click-to-injection", click_a / 1000);
+    let span = inst_a.start("click-to-injection", a.local_ms(click_a));
 
     // Simulate network delay: one more advance of `owd_usec`.
     let (_, injection_b) = advance(owd_usec as u64);
 
-    // B finishes the event at its local time (in ms).
+    // B finishes the event at its local time (elapsed ms since B's clock started).
     // Use inst_a (the local clock that started the span) to compute latency.
-    let latency = inst_a.finish_remote(&span, injection_b / 1000);
+    let latency = inst_a.finish_remote(&span, b.local_ms(injection_b));
 
     // The measured latency should be approximately the one-way delay (5 ms).
     assert!(

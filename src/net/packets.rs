@@ -104,7 +104,7 @@ impl_probe!(InputEventPacket);
 #[rkyv(derive(Clone, Copy, Debug, PartialEq, Eq))]
 pub struct StatsEvent {
     pub seq: u32,
-    pub server_print_ms: u64,
+    pub server_print_ms: u32,
 }
 
 /// Stats batch packet sent by the server back to the client.

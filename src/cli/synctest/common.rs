@@ -15,7 +15,7 @@ pub fn now_usec() -> u64 {
 pub fn format_probe_stats(
     label: &str,
     seq: u32,
-    local_ms: u64,
+    local_ms: u32,
     remote_ms: Option<i64>,
     correction_ms: Option<i64>,
     min_delta: u32,

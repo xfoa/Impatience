@@ -1,7 +1,7 @@
 use crate::cli::latencydemo::common;
 use crossterm::event::{Event as CrosstermEvent, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
-use impatience::instrumentation::{histogram_svg, scatter_plot_svg, Profiler};
+use impatience::instrumentation::{Profiler, Span, histogram_svg, scatter_plot_svg};
 use impatience::net::packets::{
     InputEventPacket, Packet, StartClockPacket, SyncPacket,
 };
@@ -90,7 +90,7 @@ pub fn run(host: &str, port: u16, sync_interval_ms: u64, max_delay_ms: u32) {
     eprintln!("[client] handshake complete, starting latency demo. Press Escape to exit.");
 
     let profiler = Profiler::new(clock.clone());
-    let pending_spans: Arc<Mutex<impatience::instrumentation::EventTracker<u32, (u32, char, u64)>>> =
+    let pending_spans: Arc<Mutex<impatience::instrumentation::EventTracker<u32, (u32, char, u32)>>> =
         Arc::new(Mutex::new(impatience::instrumentation::EventTracker::new()));
     let exit_flag = Arc::new(AtomicBool::new(false));
     let next_seq = Arc::new(Mutex::new(0u32));
@@ -143,9 +143,9 @@ pub fn run(host: &str, port: u16, sync_interval_ms: u64, max_delay_ms: u32) {
                     code: KeyCode::Char(c),
                     ..
                 })) => {
-                    let now_ms = common::now_ms();
-                    let span = profiler_input.start("input-to-print", now_ms);
-                    let local_ms = clock_input.local_ms(now_ms * 1000);
+                    let now_usec = common::now_usec();
+                    let local_ms = clock_input.local_ms();
+                    let span = profiler_input.start("input-to-print", local_ms);
 
                     let mut rng = rand::thread_rng();
                     let delay_ms: u32 = rng.gen_range(0..=max_delay_ms);
@@ -238,9 +238,9 @@ pub fn run(host: &str, port: u16, sync_interval_ms: u64, max_delay_ms: u32) {
 
                         let mut pending = pending_spans.lock().unwrap();
                         for evt in &batch.events {
-                            if let Some((span, (delay_ms, ch, input_ms))) = pending.remove(&evt.seq) {
+                            if let Some((mut span, (delay_ms, ch, input_ms) )) = pending.remove(&evt.seq) {
                                 if let Some(latency_ms) =
-                                    profiler.finish_remote(&span, evt.server_print_ms)
+                                    profiler.finish_remote(&mut span, evt.server_print_ms)
                                 {
                                     let print_ms = evt.server_print_ms;
                                     per_event_latencies.push((evt.seq, delay_ms, latency_ms, ch));

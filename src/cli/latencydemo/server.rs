@@ -119,7 +119,7 @@ pub fn run(bind_addr: &str, port: u16, sync_interval_ms: u64) {
 
                         let server_event = StatsEvent {
                             seq: evt.seq,
-                            server_print_ms: common::now_ms(),
+                            server_print_ms: clock.local_ms(),
                         };
                         stats_buffer.lock().unwrap().push(server_event);
                     }

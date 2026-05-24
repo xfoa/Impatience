@@ -136,12 +136,12 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
                     Ok(Packet::Pong(pong)) => {
                         let now = common::now_usec();
                         let _owd = clock.on_probe(&pong, now);
-                        let local_ms = clock.local_ms(now);
+                        let local_ms = clock.local_ms();
                         let correction = clock.correction_ms();
                         let min_delta = clock.min_delta().to_unsigned();
                         let synced = clock.is_synchronised();
                         let start_delta_ms = clock.start_delta_ms();
-                        let remote_ms = clock.remote_ms(now, -1);
+                        let remote_ms = clock.remote_ms( true);
                         println!(
                             "{}",
                             common::format_probe_stats(

@@ -80,12 +80,12 @@ pub fn run(bind_addr: &str, port: u16, sync_interval_ms: u64) {
                         }
 
                         let _owd = clock.on_probe(&ping, now);
-                        let local_ms = clock.local_ms(now);
+                        let local_ms = clock.local_ms();
                         let correction = clock.correction_ms();
                         let min_delta = clock.min_delta().to_unsigned();
                         let synced = clock.is_synchronised();
                         let start_delta_ms = clock.start_delta_ms();
-                        let remote_ms = clock.remote_ms(now, 1);
+                        let remote_ms = clock.remote_ms( false);
 
                         let mut pong = PongPacket::default();
                         pong.ping_seq = ping.seq;

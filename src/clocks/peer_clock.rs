@@ -3,6 +3,12 @@ use crate::net::traits::{apply_peer_sync, apply_probe, retrieve_peer_sync, retri
 use crate::timesync::Counter24;
 use std::sync::{Arc, Mutex};
 
+macro_rules! safe_cast {
+    ($type:ty, $var:expr) => {
+        <$type>::try_from($var).expect("value out of range for u to i cast")
+    };
+}
+
 /// A peer-aware clock abstraction that wraps [`SyncedClock`] and adds
 /// remote-start tracking, generic probe/sync packet handling, and
 /// remote-time estimation maths.
@@ -87,8 +93,8 @@ impl PeerClock {
     }
 
     /// Local milliseconds elapsed since the clock was started.
-    pub fn local_ms(&self, now_usec: u64) -> u64 {
-        self.inner.lock().unwrap().clock.local_ms(now_usec)
+    pub fn local_ms(&self) -> u32 {
+        self.inner.lock().unwrap().clock.local_ms()
     }
 
     /// Estimated correction to local time in milliseconds.
@@ -123,21 +129,33 @@ impl PeerClock {
         Some((inner.clock.started_at() as i64 - peer as i64) / 1000)
     }
 
-    /// Estimate the remote peer's time in milliseconds.
+    /// Convert a remote time to local time using estimated latency and offset correction.
     ///
-    /// `owd_sign` controls how the minimum one-way delay is applied:
-    /// * `-1` for the initiating side (client)
-    /// * `+1` for the responding side (server)
-    pub fn remote_ms(&self, now_usec: u64, owd_sign: i64) -> Option<i64> {
+    /// `initiator` controls how the minimum one-way delay is applied:
+    /// * `true` for the initiating side (client)
+    /// * `false` for the responding side (server)
+    pub fn remote_to_local(&self, remote_time_ms: u32, initiator: bool) -> Option<i64> {
         let inner = self.inner.lock().unwrap();
-        let peer = inner.peer_started_at?;
+        let peer_started_at = inner.peer_started_at?;
         let correction_usec = inner.clock.correction_usec().unwrap_or(0);
-        let min_owd_usec = inner.clock.minimum_one_way_delay_usec() as i64;
-        let local_usec = now_usec.saturating_sub(inner.clock.started_at());
-        let start_delta_usec = inner.clock.started_at() as i64 - peer as i64;
-        let remote_usec = local_usec as i64 + start_delta_usec + correction_usec + owd_sign * min_owd_usec;
+        let min_owd_usec = inner.clock.minimum_one_way_delay_usec();
+        let start_delta_usec: i64 = safe_cast!(i64, inner.clock.started_at()) - safe_cast!(i64, peer_started_at);
+        let remote_usec: i64 = remote_time_ms as i64 * 1000 + start_delta_usec + correction_usec + if initiator { -1 } else { 1 } * min_owd_usec as i64;
         // Round instead of truncating
         Some((remote_usec + if remote_usec >= 0 { 500 } else { -500 }) / 1000)
+    }
+
+    /// Estimate the remote peer's current time in milliseconds.
+    ///
+    /// `initiator` controls how the minimum one-way delay is applied:
+    /// * `true` for the initiating side (client)
+    /// * `false` for the responding side (server)
+    pub fn remote_ms(&self, initiator: bool) -> Option<i64> {
+        let inner = self.inner.lock().unwrap();
+        let local_ms = inner.clock.local_ms();
+        let remote_ms = self.remote_to_local(local_ms, initiator)?;
+        // Round instead of truncating
+        Some((remote_ms + if remote_ms >= 0 { 500 } else { -500 }) / 1000)
     }
 }
 
