@@ -111,6 +111,12 @@ impl LatencyAggregator {
         self.sorted.clear();
         self.ring.clear();
     }
+
+    /// Iterate over samples in insertion order (oldest first).
+    #[inline]
+    pub fn iter(&self) -> impl Iterator<Item = &u64> {
+        self.ring.iter()
+    }
 }
 
 impl Default for LatencyAggregator {

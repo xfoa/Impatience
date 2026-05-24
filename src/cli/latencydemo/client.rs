@@ -1,13 +1,12 @@
 use crate::cli::latencydemo::common;
 use crossterm::event::{Event as CrosstermEvent, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
-use impatience::instrumentation::Instrument;
+use impatience::instrumentation::{histogram_svg, scatter_plot_svg, Instrument};
 use impatience::net::packet::{
     InputEventPacket, Packet, StartClockPacket, SyncPacket,
 };
 use impatience::net::PeerClock;
 use rand::Rng;
-use std::collections::HashMap;
 use std::io;
 use std::net::UdpSocket;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -90,9 +89,8 @@ pub fn run(host: &str, port: u16, sync_interval_ms: u64, max_delay_ms: u32) {
     eprintln!("[client] handshake complete, starting latency demo. Press Escape to exit.");
 
     let instrument = Instrument::new(clock.clone());
-    let pending_spans: Arc<
-        Mutex<HashMap<u32, (impatience::instrumentation::Span, u32, char, u64)>>,
-    > = Arc::new(Mutex::new(HashMap::new()));
+    let pending_spans: Arc<Mutex<impatience::instrumentation::EventTracker<u32, (u32, char, u64)>>> =
+        Arc::new(Mutex::new(impatience::instrumentation::EventTracker::new()));
     let exit_flag = Arc::new(AtomicBool::new(false));
     let next_seq = Arc::new(Mutex::new(0u32));
 
@@ -160,7 +158,7 @@ pub fn run(host: &str, port: u16, sync_interval_ms: u64, max_delay_ms: u32) {
                     pending_input
                         .lock()
                         .unwrap()
-                        .insert(seq, (span, delay_ms, c, local_ms));
+                        .insert(seq, span, (delay_ms, c, local_ms));
 
                     print!(
                         "[client] input seq={} ch='{}' local={}ms\r\n",
@@ -240,7 +238,7 @@ pub fn run(host: &str, port: u16, sync_interval_ms: u64, max_delay_ms: u32) {
 
                         let mut pending = pending_spans.lock().unwrap();
                         for evt in &batch.events {
-                            if let Some((span, delay_ms, ch, input_ms)) = pending.remove(&evt.seq) {
+                            if let Some((span, (delay_ms, ch, input_ms))) = pending.remove(&evt.seq) {
                                 let server_print_usec = evt.server_print_ms * 1000;
                                 if let Some(latency_usec) =
                                     instrument.finish_remote(&span, server_print_usec)
@@ -460,197 +458,19 @@ svg {
     html.push_str(&stat("Max", snapshot.max));
     html.push_str("</div>\n");
 
+    let plot_data: Vec<(usize, u64)> = events
+        .iter()
+        .enumerate()
+        .map(|(i, (_, _, latency, _))| (i, *latency))
+        .collect();
+
     html.push_str("<h2>Latency Over Time</h2>\n");
-    html.push_str(&generate_scatter_svg(events));
+    html.push_str(&scatter_plot_svg(&plot_data));
 
     html.push_str("<h2>Latency Histogram</h2>\n");
-    html.push_str(&generate_histogram_svg(events));
+    html.push_str(&histogram_svg(&plot_data, 20));
 
     html.push_str("</div>\n</body>\n</html>\n");
     std::fs::write("latency_report.html", html)
 }
 
-fn generate_scatter_svg(events: &[(u32, u32, u64, char)]) -> String {
-    let width = 800;
-    let height = 400;
-    let padding = 60;
-    let plot_w = width - 2 * padding;
-    let plot_h = height - 2 * padding;
-
-    let max_latency = events.iter().map(|(_, _, l, _)| *l).max().unwrap_or(1).max(1);
-    let max_x = events.len().max(1);
-
-    let mut svg = format!(
-        r##"<svg width="{}" height="{}" viewBox="0 0 {} {}" xmlns="http://www.w3.org/2000/svg">"##,
-        width, height, width, height
-    );
-
-    // Axes
-    svg.push_str(&format!(
-        r##"<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="#333" stroke-width="2"/>"##,
-        padding,
-        height - padding,
-        width - padding,
-        height - padding
-    ));
-    svg.push_str(&format!(
-        r##"<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="#333" stroke-width="2"/>"##,
-        padding,
-        height - padding,
-        padding,
-        padding
-    ));
-
-    // Y-axis ticks and labels
-    let y_ticks = 5;
-    for i in 0..=y_ticks {
-        let v = (max_latency as f64 * i as f64 / y_ticks as f64) as u64;
-        let y = height - padding - ((i as f64 / y_ticks as f64) * plot_h as f64) as i32;
-        svg.push_str(&format!(
-            r##"<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="#333" stroke-width="1"/>"##,
-            padding - 5, y, padding, y
-        ));
-        svg.push_str(&format!(
-            r##"<text x="{}" y="{}" text-anchor="end" font-size="10" dominant-baseline="middle">{}</text>"##,
-            padding - 8, y, v
-        ));
-    }
-
-    // X-axis ticks and labels
-    let x_ticks = if max_x < 5 { max_x } else { 5 };
-    for i in 0..=x_ticks {
-        let v = (max_x as f64 * i as f64 / x_ticks as f64) as usize;
-        let x = padding + ((i as f64 / x_ticks as f64) * plot_w as f64) as i32;
-        svg.push_str(&format!(
-            r##"<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="#333" stroke-width="1"/>"##,
-            x, height - padding, x, height - padding + 5
-        ));
-        svg.push_str(&format!(
-            r##"<text x="{}" y="{}" text-anchor="middle" font-size="10">{}</text>"##,
-            x, height - padding + 18, v
-        ));
-    }
-
-    // Data points
-    for (i, (_, _, latency, _)) in events.iter().enumerate() {
-        let x = padding + ((i as f64 / max_x as f64) * plot_w as f64) as i32;
-        let y = height - padding
-            - ((*latency as f64 / max_latency as f64) * plot_h as f64) as i32;
-        svg.push_str(&format!(
-            r##"<circle cx="{}" cy="{}" r="3" fill="#007bff"/>"##,
-            x, y
-        ));
-    }
-
-    svg.push_str(&format!(
-        r##"<text x="{}" y="{}" text-anchor="middle" font-size="12">Event Index</text>"##,
-        width / 2,
-        height - 2
-    ));
-    svg.push_str(&format!(
-        r##"<text x="{}" y="{}" text-anchor="middle" font-size="12" transform="rotate(-90, {}, {})">Latency (ms)</text>"##,
-        12, height / 2, 12, height / 2
-    ));
-
-    svg.push_str("</svg>");
-    svg
-}
-
-fn generate_histogram_svg(events: &[(u32, u32, u64, char)]) -> String {
-    let width = 800;
-    let height = 400;
-    let padding = 60;
-    let plot_w = width - 2 * padding;
-    let plot_h = height - 2 * padding;
-
-    let max_latency = events.iter().map(|(_, _, l, _)| *l).max().unwrap_or(1).max(1);
-    let buckets = 20;
-    let mut counts = vec![0usize; buckets];
-
-    for (_, _, latency, _) in events {
-        let bucket = ((*latency as f64 / max_latency as f64) * (buckets as f64 - 1.0))
-            .min(buckets as f64 - 1.0) as usize;
-        counts[bucket] += 1;
-    }
-
-    let max_count = counts.iter().copied().max().unwrap_or(1).max(1);
-
-    let mut svg = format!(
-        r##"<svg width="{}" height="{}" viewBox="0 0 {} {}" xmlns="http://www.w3.org/2000/svg">"##,
-        width, height, width, height
-    );
-
-    // Axes
-    svg.push_str(&format!(
-        r##"<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="#333" stroke-width="2"/>"##,
-        padding,
-        height - padding,
-        width - padding,
-        height - padding
-    ));
-    svg.push_str(&format!(
-        r##"<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="#333" stroke-width="2"/>"##,
-        padding,
-        height - padding,
-        padding,
-        padding
-    ));
-
-    // Y-axis ticks and labels
-    let y_ticks = 5;
-    for i in 0..=y_ticks {
-        let v = (max_count as f64 * i as f64 / y_ticks as f64).ceil() as usize;
-        let y = height - padding - ((i as f64 / y_ticks as f64) * plot_h as f64) as i32;
-        svg.push_str(&format!(
-            r##"<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="#333" stroke-width="1"/>"##,
-            padding - 5, y, padding, y
-        ));
-        svg.push_str(&format!(
-            r##"<text x="{}" y="{}" text-anchor="end" font-size="10" dominant-baseline="middle">{}</text>"##,
-            padding - 8, y, v
-        ));
-    }
-
-    // X-axis ticks and labels
-    let x_ticks = 5;
-    for i in 0..=x_ticks {
-        let v = (max_latency as f64 * i as f64 / x_ticks as f64) as u64;
-        let x = padding + ((i as f64 / x_ticks as f64) * plot_w as f64) as i32;
-        svg.push_str(&format!(
-            r##"<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="#333" stroke-width="1"/>"##,
-            x, height - padding, x, height - padding + 5
-        ));
-        svg.push_str(&format!(
-            r##"<text x="{}" y="{}" text-anchor="middle" font-size="10">{}</text>"##,
-            x, height - padding + 18, v
-        ));
-    }
-
-    // Bars
-    let bar_w = plot_w as f64 / buckets as f64;
-    for (i, count) in counts.iter().enumerate() {
-        let x = padding + (i as f64 * bar_w) as i32;
-        let bar_h = ((*count as f64 / max_count as f64) * plot_h as f64) as i32;
-        let y = height - padding - bar_h;
-        svg.push_str(&format!(
-            r##"<rect x="{}" y="{}" width="{}" height="{}" fill="#28a745" stroke="#fff" stroke-width="1"/>"##,
-            x,
-            y,
-            bar_w as i32 - 1,
-            bar_h
-        ));
-    }
-
-    svg.push_str(&format!(
-        r##"<text x="{}" y="{}" text-anchor="middle" font-size="12">Latency (ms)</text>"##,
-        width / 2,
-        height - 2
-    ));
-    svg.push_str(&format!(
-        r##"<text x="{}" y="{}" text-anchor="middle" font-size="12" transform="rotate(-90, {}, {})">Count</text>"##,
-        12, height / 2, 12, height / 2
-    ));
-
-    svg.push_str("</svg>");
-    svg
-}
