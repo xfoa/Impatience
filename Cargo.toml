@@ -23,3 +23,9 @@ clap = { version = "4", features = ["derive"] }
 paste = "1.0.15"
 rkyv = "0.8"
 seq-macro = "0.3.6"
+serde = { version = "1", features = ["derive"], optional = true }
+statrs = { version = "0.18", optional = true }
+
+[features]
+serde = ["dep:serde"]
+uncertainty = ["dep:statrs"]
