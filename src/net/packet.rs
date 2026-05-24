@@ -87,13 +87,45 @@ pub struct AckStartClockPacket {
     pub started_at: u64,
 }
 
+/// Input event packet sent by the client to the server.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Archive, Serialize, Deserialize)]
+#[rkyv(derive(Clone, Copy, Debug, PartialEq, Eq))]
+pub struct InputEventPacket {
+    pub probe_ts24: u32,
+    pub seq: u32,
+    pub ch: u8,
+    pub delay_ms: u32,
+}
+
+impl_probe!(InputEventPacket);
+
+/// A single print event recorded by the server.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Archive, Serialize, Deserialize)]
+#[rkyv(derive(Clone, Copy, Debug, PartialEq, Eq))]
+pub struct StatsEvent {
+    pub seq: u32,
+    pub server_print_ms: u64,
+}
+
+/// Stats batch packet sent by the server back to the client.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Archive, Serialize, Deserialize)]
+#[rkyv(derive(Debug, PartialEq, Eq))]
+pub struct StatsBatchPacket {
+    pub probe_ts24: u32,
+    pub events: Vec<StatsEvent>,
+}
+
+impl_probe!(StatsBatchPacket);
+
 /// Unified packet type that can hold any concrete packet.
 #[derive(Clone, Debug, PartialEq, Eq, Archive, Serialize, Deserialize)]
-#[rkyv(derive(Clone, Debug, PartialEq, Eq))]
+#[rkyv(derive(Debug, PartialEq, Eq))]
 pub enum Packet {
     Sync(SyncPacket),
     Ping(PingPacket),
     Pong(PongPacket),
     StartClock(StartClockPacket),
     AckStartClock(AckStartClockPacket),
+    InputEvent(InputEventPacket),
+    StatsBatch(StatsBatchPacket),
 }

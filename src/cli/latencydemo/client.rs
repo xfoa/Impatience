@@ -1,0 +1,656 @@
+use crate::cli::latencydemo::common;
+use crossterm::event::{Event as CrosstermEvent, KeyCode, KeyEvent, KeyModifiers};
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
+use impatience::instrumentation::Instrument;
+use impatience::net::packet::{
+    InputEventPacket, Packet, StartClockPacket, SyncPacket,
+};
+use impatience::net::PeerClock;
+use rand::Rng;
+use std::collections::HashMap;
+use std::io;
+use std::net::UdpSocket;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
+
+struct RawModeGuard;
+impl Drop for RawModeGuard {
+    fn drop(&mut self) {
+        let _ = disable_raw_mode();
+    }
+}
+
+pub fn run(host: &str, port: u16, sync_interval_ms: u64) {
+    let socket = UdpSocket::bind("0.0.0.0:0").expect("client bind failed");
+    socket
+        .connect(format!("{}:{}", host, port))
+        .expect("client connect failed");
+    socket
+        .set_read_timeout(Some(Duration::from_millis(100)))
+        .expect("set_read_timeout failed");
+
+    let clock = PeerClock::new();
+    let started_at = common::now_usec();
+    clock.start(started_at);
+
+    // --- StartClock handshake ---
+    eprintln!("[client] sending StartClock with started_at={}", started_at);
+    let pkt = Packet::StartClock(StartClockPacket { started_at });
+    let bytes = pkt.to_bytes().expect("serialise StartClock");
+    socket.send(&bytes).expect("send StartClock");
+
+    let mut buf = [0u8; common::MAX_MSG_SIZE];
+    let mut acked = false;
+    let mut handshake_retries = 0;
+    while !acked && handshake_retries < 50 {
+        match socket.recv(&mut buf) {
+            Ok(n) => {
+                match Packet::from_bytes(&buf[..n]) {
+                    Ok(Packet::AckStartClock(ack)) => {
+                        eprintln!(
+                            "[client] got AckStartClock peer_started_at={}",
+                            ack.started_at
+                        );
+                        clock.set_peer_started_at(ack.started_at);
+                        acked = true;
+                    }
+                    Ok(other) => {
+                        eprintln!("[client] unexpected packet during handshake: {:?}", other);
+                    }
+                    Err(e) => {
+                        eprintln!("[client] packet parse error: {}", e);
+                    }
+                }
+            }
+            Err(e)
+                if e.kind() == io::ErrorKind::WouldBlock
+                    || e.kind() == io::ErrorKind::TimedOut =>
+            {
+                handshake_retries += 1;
+                eprintln!(
+                    "[client] handshake timeout #{}, retrying StartClock",
+                    handshake_retries
+                );
+                socket.send(&bytes).expect("retry StartClock");
+            }
+            Err(e) => {
+                eprintln!("[client] handshake recv error: {}", e);
+                break;
+            }
+        }
+    }
+
+    if !acked {
+        eprintln!("[client] handshake failed, aborting");
+        return;
+    }
+
+    eprintln!("[client] handshake complete, starting latency demo. Press Escape to exit.");
+
+    let instrument = Instrument::new(clock.clone());
+    let pending_spans: Arc<
+        Mutex<HashMap<u32, (impatience::instrumentation::Span, u32, char, u64)>>,
+    > = Arc::new(Mutex::new(HashMap::new()));
+    let exit_flag = Arc::new(AtomicBool::new(false));
+    let next_seq = Arc::new(Mutex::new(0u32));
+
+    if let Err(e) = enable_raw_mode() {
+        eprintln!("[client] failed to enable raw mode: {}", e);
+        return;
+    }
+    let _raw_guard = RawModeGuard;
+
+    // --- Input thread ---
+    let socket_input = socket.try_clone().expect("socket clone failed");
+    let clock_input = clock.clone();
+    let instrument_input = instrument.clone();
+    let pending_input = Arc::clone(&pending_spans);
+    let exit_input = Arc::clone(&exit_flag);
+    let next_seq_input = Arc::clone(&next_seq);
+
+    let input_handle = thread::spawn(move || {
+        loop {
+            if exit_input.load(Ordering::SeqCst) {
+                break;
+            }
+
+            match crossterm::event::poll(Duration::from_millis(50)) {
+                Ok(true) => {}
+                Ok(false) => continue,
+                Err(e) => {
+                    eprintln!("[client] event poll error: {}", e);
+                    continue;
+                }
+            }
+
+            match crossterm::event::read() {
+                Ok(CrosstermEvent::Key(KeyEvent {
+                    code: KeyCode::Esc, ..
+                })) => {
+                    exit_input.store(true, Ordering::SeqCst);
+                    break;
+                }
+                Ok(CrosstermEvent::Key(KeyEvent {
+                    code: KeyCode::Char('c'),
+                    modifiers: KeyModifiers::CONTROL,
+                    ..
+                })) => {
+                    let _ = disable_raw_mode();
+                    unsafe { libc::raise(libc::SIGINT) };
+                }
+                Ok(CrosstermEvent::Key(KeyEvent {
+                    code: KeyCode::Char(c),
+                    ..
+                })) => {
+                    let now_ms = common::now_ms();
+                    let now_usec = now_ms * 1000;
+                    let span = instrument_input.start("input-to-print", now_usec);
+                    let local_ms = clock_input.local_ms(now_usec);
+
+                    let mut rng = rand::thread_rng();
+                    let delay_ms: u32 = rng.gen_range(0..=100);
+
+                    let mut seq_lock = next_seq_input.lock().unwrap();
+                    let seq = *seq_lock;
+                    *seq_lock = seq.wrapping_add(1);
+                    drop(seq_lock);
+
+                    pending_input
+                        .lock()
+                        .unwrap()
+                        .insert(seq, (span, delay_ms, c, local_ms));
+
+                    print!(
+                        "[client] input seq={} ch='{}' local={}ms\r\n",
+                        seq, c, local_ms
+                    );
+                    let _ = std::io::Write::flush(&mut std::io::stdout());
+
+                    let socket_send = socket_input.try_clone().expect("socket clone failed");
+                    let clock_send = clock_input.clone();
+                    thread::spawn(move || {
+                        thread::sleep(Duration::from_millis(delay_ms as u64));
+                        let mut pkt = InputEventPacket {
+                            probe_ts24: 0,
+                            seq,
+                            ch: c as u8,
+                            delay_ms,
+                        };
+                        let send_now = common::now_usec();
+                        clock_send.stamp_probe(&mut pkt, send_now);
+
+                        if let Ok(bytes) = Packet::InputEvent(pkt).to_bytes() {
+                            let _ = socket_send.send(&bytes);
+                        }
+                    });
+                }
+                Ok(_) => {}
+                Err(e) => {
+                    eprintln!("[client] event read error: {}", e);
+                }
+            }
+        }
+    });
+
+    // --- Sync sender thread ---
+    let socket_sync = socket.try_clone().expect("socket clone failed");
+    let clock_sync = clock.clone();
+    let exit_sync = Arc::clone(&exit_flag);
+    let sync_handle = thread::spawn(move || {
+        loop {
+            thread::sleep(Duration::from_millis(sync_interval_ms));
+            if exit_sync.load(Ordering::SeqCst) {
+                break;
+            }
+
+            let mut pkt = SyncPacket::default();
+            let now = common::now_usec();
+            clock_sync.stamp_sync(&mut pkt, now);
+
+            if let Ok(bytes) = Packet::Sync(pkt).to_bytes() {
+                let _ = socket_sync.send(&bytes);
+            }
+        }
+    });
+
+    let mut per_event_latencies: Vec<(u32, u32, u64, char)> = Vec::new();
+
+    // --- Main recv loop ---
+    let mut exit_time: Option<u64> = None;
+    loop {
+        if exit_flag.load(Ordering::SeqCst) {
+            if exit_time.is_none() {
+                let _ = disable_raw_mode();
+                exit_time = Some(common::now_ms());
+                eprintln!("[client] exit requested, draining for 2s...");
+            } else if common::now_ms().saturating_sub(exit_time.unwrap()) > 2000 {
+                eprintln!("[client] drain complete");
+                break;
+            }
+        }
+
+        match socket.recv(&mut buf) {
+            Ok(n) => {
+                match Packet::from_bytes(&buf[..n]) {
+                    Ok(Packet::StatsBatch(batch)) => {
+                        let now = common::now_usec();
+                        let _owd = clock.on_probe(&batch, now);
+
+                        let mut pending = pending_spans.lock().unwrap();
+                        for evt in &batch.events {
+                            if let Some((span, delay_ms, ch, input_ms)) = pending.remove(&evt.seq) {
+                                let server_print_usec = evt.server_print_ms * 1000;
+                                if let Some(latency_usec) =
+                                    instrument.finish_remote(&span, server_print_usec)
+                                {
+                                    let latency_ms = latency_usec / 1000;
+                                    let corrected_print_ms = input_ms + latency_ms;
+                                    per_event_latencies.push((evt.seq, delay_ms, latency_ms, ch));
+                                    print!(
+                                        "[client] print seq={} ch='{}' input={}ms print={}ms delay={}ms latency={}ms\r\n",
+                                        evt.seq, ch, input_ms, corrected_print_ms, delay_ms, latency_ms
+                                    );
+                                    let _ = std::io::Write::flush(&mut std::io::stdout());
+                                } else {
+                                    eprintln!(
+                                        "[client] clock not synchronised for seq={}",
+                                        evt.seq
+                                    );
+                                }
+                            } else {
+                                eprintln!(
+                                    "[client] unknown seq in stats batch: {}",
+                                    evt.seq
+                                );
+                            }
+                        }
+                    }
+                    Ok(Packet::Sync(sync_pkt)) => {
+                        clock.on_sync(&sync_pkt);
+                    }
+                    Ok(other) => {
+                        eprintln!("[client] unexpected packet: {:?}", other);
+                    }
+                    Err(e) => {
+                        eprintln!("[client] packet parse error: {}", e);
+                    }
+                }
+            }
+            Err(e)
+                if e.kind() == io::ErrorKind::WouldBlock
+                    || e.kind() == io::ErrorKind::TimedOut =>
+            {
+                if exit_time.is_some()
+                    && common::now_ms().saturating_sub(exit_time.unwrap()) > 2000
+                {
+                    eprintln!("[client] drain timeout, exiting");
+                    break;
+                }
+            }
+            Err(e) => {
+                eprintln!("[client] recv error: {}", e);
+                break;
+            }
+        }
+    }
+
+    input_handle.join().ok();
+    sync_handle.join().ok();
+
+    // --- Generate reports ---
+    let snapshot = instrument.snapshot();
+    let snapshot_ms = impatience::instrumentation::Snapshot {
+        count: snapshot.count,
+        min: snapshot.min.map(|v| v / 1000),
+        max: snapshot.max.map(|v| v / 1000),
+        p50: snapshot.p50.map(|v| v / 1000),
+        p95: snapshot.p95.map(|v| v / 1000),
+        p99: snapshot.p99.map(|v| v / 1000),
+    };
+    eprintln!(
+        "[client] aggregate: count={} min={:?}ms p50={:?}ms p95={:?}ms p99={:?}ms max={:?}ms",
+        snapshot_ms.count, snapshot_ms.min, snapshot_ms.p50, snapshot_ms.p95, snapshot_ms.p99, snapshot_ms.max
+    );
+
+    let report = serde_json::json!({
+        "total_events": per_event_latencies.len(),
+        "min_ms": snapshot_ms.min,
+        "p50_ms": snapshot_ms.p50,
+        "p95_ms": snapshot_ms.p95,
+        "p99_ms": snapshot_ms.p99,
+        "max_ms": snapshot_ms.max,
+        "events": per_event_latencies.iter().map(|(seq, delay, latency, ch)| {
+            serde_json::json!({
+                "seq": seq,
+                "char": ch.to_string(),
+                "delay_ms": delay,
+                "latency_ms": latency,
+            })
+        }).collect::<Vec<_>>(),
+    });
+
+    match serde_json::to_string_pretty(&report) {
+        Ok(json) => {
+            if let Err(e) = std::fs::write("latency_stats.json", json) {
+                eprintln!("[client] failed to write JSON: {}", e);
+            } else {
+                eprintln!("[client] wrote latency_stats.json");
+            }
+        }
+        Err(e) => eprintln!("[client] JSON serialize error: {}", e),
+    }
+
+    if let Err(e) = generate_html_report(&per_event_latencies, &snapshot_ms) {
+        eprintln!("[client] failed to generate HTML report: {}", e);
+    } else {
+        eprintln!("[client] wrote latency_report.html");
+    }
+}
+
+fn generate_html_report(
+    events: &[(u32, u32, u64, char)],
+    snapshot: &impatience::instrumentation::Snapshot,
+) -> Result<(), std::io::Error> {
+    if events.is_empty() {
+        std::fs::write(
+            "latency_report.html",
+            "<!DOCTYPE html><html><body><h1>No events recorded</h1></body></html>",
+        )?;
+        return Ok(());
+    }
+
+    let mut html = String::new();
+    html.push_str(r##"<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Latency Report</title>
+<style>
+* { box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #f5f7fa;
+    color: #2d3748;
+    margin: 0;
+    padding: 40px 20px;
+    line-height: 1.6;
+}
+.container {
+    max-width: 960px;
+    margin: 0 auto;
+}
+h1 {
+    font-size: 2rem;
+    font-weight: 600;
+    margin: 0 0 8px 0;
+    color: #1a202c;
+}
+.subtitle {
+    color: #718096;
+    font-size: 0.95rem;
+    margin: 0 0 24px 0;
+}
+.cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 16px;
+    margin-bottom: 32px;
+}
+.card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 16px 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    border: 1px solid #e2e8f0;
+}
+.card-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #a0aec0;
+    margin: 0 0 4px 0;
+}
+.card-value {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #2d3748;
+    margin: 0;
+}
+h2 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 32px 0 12px 0;
+    color: #1a202c;
+}
+svg {
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    border: 1px solid #e2e8f0;
+    display: block;
+    width: 100%;
+    height: auto;
+    padding: 16px;
+}
+</style>
+</head>
+<body>
+<div class="container">
+"##);
+    html.push_str(&format!(
+        "<h1>Latency Report</h1>\n<p class=\"subtitle\">Total events: {}</p>\n",
+        events.len()
+    ));
+
+    html.push_str("<div class=\"cards\">\n");
+    let stat = |label: &str, value: Option<u64>| {
+        let v = value.map(|n| n.to_string()).unwrap_or_else(|| "-".to_string());
+        format!(
+            "<div class=\"card\"><p class=\"card-label\">{}</p><p class=\"card-value\">{} ms</p></div>\n",
+            label, v
+        )
+    };
+    html.push_str(&stat("Min", snapshot.min));
+    html.push_str(&stat("P50", snapshot.p50));
+    html.push_str(&stat("P95", snapshot.p95));
+    html.push_str(&stat("P99", snapshot.p99));
+    html.push_str(&stat("Max", snapshot.max));
+    html.push_str("</div>\n");
+
+    html.push_str("<h2>Latency Over Time</h2>\n");
+    html.push_str(&generate_scatter_svg(events));
+
+    html.push_str("<h2>Latency Histogram</h2>\n");
+    html.push_str(&generate_histogram_svg(events));
+
+    html.push_str("</div>\n</body>\n</html>\n");
+    std::fs::write("latency_report.html", html)
+}
+
+fn generate_scatter_svg(events: &[(u32, u32, u64, char)]) -> String {
+    let width = 800;
+    let height = 400;
+    let padding = 60;
+    let plot_w = width - 2 * padding;
+    let plot_h = height - 2 * padding;
+
+    let max_latency = events.iter().map(|(_, _, l, _)| *l).max().unwrap_or(1).max(1);
+    let max_x = events.len().max(1);
+
+    let mut svg = format!(
+        r##"<svg width="{}" height="{}" viewBox="0 0 {} {}" xmlns="http://www.w3.org/2000/svg">"##,
+        width, height, width, height
+    );
+
+    // Axes
+    svg.push_str(&format!(
+        r##"<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="#333" stroke-width="2"/>"##,
+        padding,
+        height - padding,
+        width - padding,
+        height - padding
+    ));
+    svg.push_str(&format!(
+        r##"<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="#333" stroke-width="2"/>"##,
+        padding,
+        height - padding,
+        padding,
+        padding
+    ));
+
+    // Y-axis ticks and labels
+    let y_ticks = 5;
+    for i in 0..=y_ticks {
+        let v = (max_latency as f64 * i as f64 / y_ticks as f64) as u64;
+        let y = height - padding - ((i as f64 / y_ticks as f64) * plot_h as f64) as i32;
+        svg.push_str(&format!(
+            r##"<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="#333" stroke-width="1"/>"##,
+            padding - 5, y, padding, y
+        ));
+        svg.push_str(&format!(
+            r##"<text x="{}" y="{}" text-anchor="end" font-size="10" dominant-baseline="middle">{}</text>"##,
+            padding - 8, y, v
+        ));
+    }
+
+    // X-axis ticks and labels
+    let x_ticks = if max_x < 5 { max_x } else { 5 };
+    for i in 0..=x_ticks {
+        let v = (max_x as f64 * i as f64 / x_ticks as f64) as usize;
+        let x = padding + ((i as f64 / x_ticks as f64) * plot_w as f64) as i32;
+        svg.push_str(&format!(
+            r##"<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="#333" stroke-width="1"/>"##,
+            x, height - padding, x, height - padding + 5
+        ));
+        svg.push_str(&format!(
+            r##"<text x="{}" y="{}" text-anchor="middle" font-size="10">{}</text>"##,
+            x, height - padding + 18, v
+        ));
+    }
+
+    // Data points
+    for (i, (_, _, latency, _)) in events.iter().enumerate() {
+        let x = padding + ((i as f64 / max_x as f64) * plot_w as f64) as i32;
+        let y = height - padding
+            - ((*latency as f64 / max_latency as f64) * plot_h as f64) as i32;
+        svg.push_str(&format!(
+            r##"<circle cx="{}" cy="{}" r="3" fill="#007bff"/>"##,
+            x, y
+        ));
+    }
+
+    svg.push_str(&format!(
+        r##"<text x="{}" y="{}" text-anchor="middle" font-size="12">Event Index</text>"##,
+        width / 2,
+        height - 2
+    ));
+    svg.push_str(&format!(
+        r##"<text x="{}" y="{}" text-anchor="middle" font-size="12" transform="rotate(-90, {}, {})">Latency (ms)</text>"##,
+        12, height / 2, 12, height / 2
+    ));
+
+    svg.push_str("</svg>");
+    svg
+}
+
+fn generate_histogram_svg(events: &[(u32, u32, u64, char)]) -> String {
+    let width = 800;
+    let height = 400;
+    let padding = 60;
+    let plot_w = width - 2 * padding;
+    let plot_h = height - 2 * padding;
+
+    let max_latency = events.iter().map(|(_, _, l, _)| *l).max().unwrap_or(1).max(1);
+    let buckets = 20;
+    let mut counts = vec![0usize; buckets];
+
+    for (_, _, latency, _) in events {
+        let bucket = ((*latency as f64 / max_latency as f64) * (buckets as f64 - 1.0))
+            .min(buckets as f64 - 1.0) as usize;
+        counts[bucket] += 1;
+    }
+
+    let max_count = counts.iter().copied().max().unwrap_or(1).max(1);
+
+    let mut svg = format!(
+        r##"<svg width="{}" height="{}" viewBox="0 0 {} {}" xmlns="http://www.w3.org/2000/svg">"##,
+        width, height, width, height
+    );
+
+    // Axes
+    svg.push_str(&format!(
+        r##"<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="#333" stroke-width="2"/>"##,
+        padding,
+        height - padding,
+        width - padding,
+        height - padding
+    ));
+    svg.push_str(&format!(
+        r##"<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="#333" stroke-width="2"/>"##,
+        padding,
+        height - padding,
+        padding,
+        padding
+    ));
+
+    // Y-axis ticks and labels
+    let y_ticks = 5;
+    for i in 0..=y_ticks {
+        let v = (max_count as f64 * i as f64 / y_ticks as f64).ceil() as usize;
+        let y = height - padding - ((i as f64 / y_ticks as f64) * plot_h as f64) as i32;
+        svg.push_str(&format!(
+            r##"<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="#333" stroke-width="1"/>"##,
+            padding - 5, y, padding, y
+        ));
+        svg.push_str(&format!(
+            r##"<text x="{}" y="{}" text-anchor="end" font-size="10" dominant-baseline="middle">{}</text>"##,
+            padding - 8, y, v
+        ));
+    }
+
+    // X-axis ticks and labels
+    let x_ticks = 5;
+    for i in 0..=x_ticks {
+        let v = (max_latency as f64 * i as f64 / x_ticks as f64) as u64;
+        let x = padding + ((i as f64 / x_ticks as f64) * plot_w as f64) as i32;
+        svg.push_str(&format!(
+            r##"<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="#333" stroke-width="1"/>"##,
+            x, height - padding, x, height - padding + 5
+        ));
+        svg.push_str(&format!(
+            r##"<text x="{}" y="{}" text-anchor="middle" font-size="10">{}</text>"##,
+            x, height - padding + 18, v
+        ));
+    }
+
+    // Bars
+    let bar_w = plot_w as f64 / buckets as f64;
+    for (i, count) in counts.iter().enumerate() {
+        let x = padding + (i as f64 * bar_w) as i32;
+        let bar_h = ((*count as f64 / max_count as f64) * plot_h as f64) as i32;
+        let y = height - padding - bar_h;
+        svg.push_str(&format!(
+            r##"<rect x="{}" y="{}" width="{}" height="{}" fill="#28a745" stroke="#fff" stroke-width="1"/>"##,
+            x,
+            y,
+            bar_w as i32 - 1,
+            bar_h
+        ));
+    }
+
+    svg.push_str(&format!(
+        r##"<text x="{}" y="{}" text-anchor="middle" font-size="12">Latency (ms)</text>"##,
+        width / 2,
+        height - 2
+    ));
+    svg.push_str(&format!(
+        r##"<text x="{}" y="{}" text-anchor="middle" font-size="12" transform="rotate(-90, {}, {})">Count</text>"##,
+        12, height / 2, 12, height / 2
+    ));
+
+    svg.push_str("</svg>");
+    svg
+}

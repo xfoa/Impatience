@@ -20,12 +20,17 @@ path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
+crossterm = "0.27"
+libc = "0.2"
 paste = "1.0.15"
+rand = "0.8"
 rkyv = "0.8"
 seq-macro = "0.3.6"
 serde = { version = "1", features = ["derive"], optional = true }
+serde_json = "1"
 statrs = { version = "0.18", optional = true }
 
 [features]
+default = ["serde"]
 serde = ["dep:serde"]
 uncertainty = ["dep:statrs"]
