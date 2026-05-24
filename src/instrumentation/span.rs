@@ -44,6 +44,6 @@ impl Span {
     #[inline]
     pub fn remote_latency_us(&self, remote_finish_usec: u64, clock: &PeerClock) -> Option<i64> {
         let correction = clock.correction_usec()?;
-        Some(remote_finish_usec as i64 + correction - self.start_local_usec as i64)
+        Some(remote_finish_usec as i64 - correction - self.start_local_usec as i64)
     }
 }

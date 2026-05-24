@@ -59,7 +59,7 @@ fn instrument_event_to_event_latency() {
 
     // Now measure an event sent from A to B.
     let inst_a = Instrument::new(a.clone());
-    let inst_b = Instrument::new(b.clone());
+    let _inst_b = Instrument::new(b.clone());
 
     // A clicks at local time `click_a`.
     let (click_a, _) = advance(0);
@@ -69,7 +69,8 @@ fn instrument_event_to_event_latency() {
     let (_, injection_b) = advance(owd_usec as u64);
 
     // B finishes the event at its local time.
-    let latency = inst_b.finish_remote(&span, injection_b);
+    // Use inst_a (the local clock that started the span) to compute latency.
+    let latency = inst_a.finish_remote(&span, injection_b);
 
     // The measured latency should be approximately the one-way delay (5 ms).
     assert!(

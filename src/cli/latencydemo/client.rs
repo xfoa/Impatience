@@ -162,7 +162,7 @@ pub fn run(host: &str, port: u16, sync_interval_ms: u64, max_delay_ms: u32) {
                         .insert(seq, span, (delay_ms, c, local_ms));
 
                     print!(
-                        "[client] input seq={} ch='{}' local={}ms\r\n",
+                        "[client] input seq={} ch='{}' local_time={}ms\r\n",
                         seq, c, local_ms
                     );
                     let _ = std::io::Write::flush(&mut std::io::stdout());
@@ -248,7 +248,7 @@ pub fn run(host: &str, port: u16, sync_interval_ms: u64, max_delay_ms: u32) {
                                     let corrected_print_ms = input_ms + latency_ms;
                                     per_event_latencies.push((evt.seq, delay_ms, latency_ms, ch));
                                     print!(
-                                        "[client] print seq={} ch='{}' input={}ms print={}ms delay={}ms latency={}ms\r\n",
+                                        "[client] print seq={} ch='{}' input_time={}ms print_time={}ms random_delay={}ms event_latency={}ms\r\n",
                                         evt.seq, ch, input_ms, corrected_print_ms, delay_ms, latency_ms
                                     );
                                     let _ = std::io::Write::flush(&mut std::io::stdout());
