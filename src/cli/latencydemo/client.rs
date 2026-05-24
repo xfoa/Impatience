@@ -1,7 +1,7 @@
 use crate::cli::latencydemo::common;
 use crossterm::event::{Event as CrosstermEvent, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
-use impatience::instrumentation::{histogram_svg, scatter_plot_svg, Instrument};
+use impatience::instrumentation::{histogram_svg, scatter_plot_svg, Profiler};
 use impatience::net::packets::{
     InputEventPacket, Packet, StartClockPacket, SyncPacket,
 };
@@ -89,7 +89,7 @@ pub fn run(host: &str, port: u16, sync_interval_ms: u64, max_delay_ms: u32) {
 
     eprintln!("[client] handshake complete, starting latency demo. Press Escape to exit.");
 
-    let instrument = Instrument::new(clock.clone());
+    let instrument = Profiler::new(clock.clone());
     let pending_spans: Arc<Mutex<impatience::instrumentation::EventTracker<u32, (u32, char, u64)>>> =
         Arc::new(Mutex::new(impatience::instrumentation::EventTracker::new()));
     let exit_flag = Arc::new(AtomicBool::new(false));

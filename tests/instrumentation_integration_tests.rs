@@ -1,5 +1,5 @@
 use impatience::clocks::PeerClock;
-use impatience::instrumentation::Instrument;
+use impatience::instrumentation::Profiler;
 use impatience::net::packets::{PingPacket, SyncPacket};
 use impatience::net::PeerSync;
 
@@ -58,8 +58,8 @@ fn instrument_event_to_event_latency() {
     assert!(b.is_synchronised());
 
     // Now measure an event sent from A to B.
-    let inst_a = Instrument::new(a.clone());
-    let _inst_b = Instrument::new(b.clone());
+    let inst_a = Profiler::new(a.clone());
+    let _inst_b = Profiler::new(b.clone());
 
     // A clicks at local time `click_a` (in ms).
     let (click_a, _) = advance(0);

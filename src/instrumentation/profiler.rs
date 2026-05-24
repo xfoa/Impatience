@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex};
 /// the thread that generates events and the thread that receives remote
 /// completions.
 #[derive(Clone, Debug)]
-pub struct Instrument {
+pub struct Profiler {
     clock: PeerClock,
     inner: Arc<Mutex<Inner>>,
 }
@@ -23,7 +23,7 @@ struct Inner {
     aggregator: LatencyAggregator,
 }
 
-impl Instrument {
+impl Profiler {
     pub fn new(clock: PeerClock) -> Self {
         Self {
             clock,

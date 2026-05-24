@@ -1,10 +1,10 @@
-use impatience::instrumentation::{Instrument, LatencyAggregator, Snapshot, Span};
+use impatience::instrumentation::{Profiler, LatencyAggregator, Snapshot, Span};
 use impatience::clocks::PeerClock;
 
 #[test]
 fn event_id_monotonic() {
     let clock = PeerClock::new();
-    let inst = Instrument::new(clock);
+    let inst = Profiler::new(clock);
     let a = inst.start("a", 0);
     let b = inst.start("b", 1);
     let c = inst.start("c", 2);
@@ -61,7 +61,7 @@ fn snapshot_from_empty_aggregator() {
 #[test]
 fn instrument_record_and_snapshot() {
     let clock = PeerClock::new();
-    let inst = Instrument::new(clock);
+    let inst = Profiler::new(clock);
     inst.record_latency(1);
     inst.record_latency(2);
     inst.record_latency(3);
@@ -75,7 +75,7 @@ fn instrument_record_and_snapshot() {
 #[test]
 fn instrument_finish_remote_unsynced_returns_none() {
     let clock = PeerClock::new();
-    let inst = Instrument::new(clock);
+    let inst = Profiler::new(clock);
     let span = inst.start("click", 0);
     // clock is not synchronised → remote_latency_ms returns None
     assert_eq!(inst.finish_remote(&span, 10), None);
