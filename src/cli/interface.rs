@@ -135,4 +135,13 @@ pub struct Latencydemo {
         help = "Milliseconds between sync heartbeats"
     )]
     pub sync_interval: u64,
+
+    #[arg(
+        short = 'd',
+        long = "max-delay",
+        value_name = "MS",
+        default_value = "100",
+        help = "Maximum random delay before sending an event (ms)"
+    )]
+    pub max_delay: u32,
 }

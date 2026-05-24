@@ -22,7 +22,7 @@ impl Drop for RawModeGuard {
     }
 }
 
-pub fn run(host: &str, port: u16, sync_interval_ms: u64) {
+pub fn run(host: &str, port: u16, sync_interval_ms: u64, max_delay_ms: u32) {
     let socket = UdpSocket::bind("0.0.0.0:0").expect("client bind failed");
     socket
         .connect(format!("{}:{}", host, port))
@@ -150,7 +150,7 @@ pub fn run(host: &str, port: u16, sync_interval_ms: u64) {
                     let local_ms = clock_input.local_ms(now_usec);
 
                     let mut rng = rand::thread_rng();
-                    let delay_ms: u32 = rng.gen_range(0..=100);
+                    let delay_ms: u32 = rng.gen_range(0..=max_delay_ms);
 
                     let mut seq_lock = next_seq_input.lock().unwrap();
                     let seq = *seq_lock;

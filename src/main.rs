@@ -25,7 +25,7 @@ fn main() {
         }
         Commands::Latencydemo(args) => {
             if let Some(host) = args.client {
-                cli::latencydemo::client::run(&host, args.port, args.sync_interval);
+                cli::latencydemo::client::run(&host, args.port, args.sync_interval, args.max_delay);
             } else if let Some(bind) = args.server {
                 cli::latencydemo::server::run(&bind, args.port, args.sync_interval);
             } else {
