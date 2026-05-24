@@ -1,4 +1,4 @@
-use crate::instrument::aggregator::LatencyAggregator;
+use crate::instrumentation::aggregator::LatencyAggregator;
 
 /// A point-in-time snapshot of an aggregator's state.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

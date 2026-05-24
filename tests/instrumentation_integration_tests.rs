@@ -1,5 +1,5 @@
 use impatience::clocks::PeerClock;
-use impatience::instrument::Instrument;
+use impatience::instrumentation::Instrument;
 use impatience::net::packet::{PingPacket, SyncPacket};
 use impatience::net::PeerSync;
 

@@ -1,4 +1,4 @@
-use impatience::instrument::{Instrument, LatencyAggregator, Snapshot, Span};
+use impatience::instrumentation::{Instrument, LatencyAggregator, Snapshot, Span};
 use impatience::clocks::PeerClock;
 
 #[test]
@@ -14,7 +14,7 @@ fn event_id_monotonic() {
 
 #[test]
 fn span_elapsed_local() {
-    let span = Span::new(impatience::instrument::EventId(1), "test", 1000);
+    let span = Span::new(impatience::instrumentation::EventId(1), "test", 1000);
     assert_eq!(span.elapsed(2000), 1000);
     assert_eq!(span.elapsed(1000), 0);
     assert_eq!(span.elapsed(500), 0); // saturating

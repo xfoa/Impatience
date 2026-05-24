@@ -2,7 +2,7 @@ use std::fmt;
 
 /// Opaque identifier for an instrumentation event.
 ///
-/// Monotonically increasing within a single [`Instrument`](crate::instrument::Instrument)
+/// Monotonically increasing within a single [`Instrument`](crate::instrumentation::Instrument)
 /// instance.  Collision-safe across peers because each peer mints its own IDs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct EventId(pub u64);

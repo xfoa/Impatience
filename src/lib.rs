@@ -1,4 +1,4 @@
 pub mod clocks;
-pub mod instrument;
+pub mod instrumentation;
 pub mod net;
 pub mod timesync;

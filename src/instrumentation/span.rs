@@ -1,5 +1,5 @@
 use crate::clocks::PeerClock;
-use crate::instrument::event::EventId;
+use crate::instrumentation::event::EventId;
 
 /// A measurement span from a local start event to a (potential) remote finish.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
