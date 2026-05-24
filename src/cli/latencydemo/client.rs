@@ -27,7 +27,7 @@ pub fn run(host: &str, port: u16, sync_interval_ms: u64, max_delay_ms: u32) {
         .connect(format!("{}:{}", host, port))
         .expect("client connect failed");
     socket
-        .set_read_timeout(Some(Duration::from_millis(100)))
+        .set_read_timeout(Some(Duration::from_millis(1000)))
         .expect("set_read_timeout failed");
 
     let clock = PeerClock::new();
@@ -72,6 +72,7 @@ pub fn run(host: &str, port: u16, sync_interval_ms: u64, max_delay_ms: u32) {
                     "[client] handshake timeout #{}, retrying StartClock",
                     handshake_retries
                 );
+
                 socket.send(&bytes).expect("retry StartClock");
             }
             Err(e) => {
@@ -118,7 +119,7 @@ pub fn run(host: &str, port: u16, sync_interval_ms: u64, max_delay_ms: u32) {
                 Ok(true) => {}
                 Ok(false) => continue,
                 Err(e) => {
-                    eprintln!("[client] event poll error: {}", e);
+                    eprint!("[client] event poll error: {}\r\n", e);
                     continue;
                 }
             }
@@ -186,7 +187,7 @@ pub fn run(host: &str, port: u16, sync_interval_ms: u64, max_delay_ms: u32) {
                 }
                 Ok(_) => {}
                 Err(e) => {
-                    eprintln!("[client] event read error: {}", e);
+                    eprint!("[client] event read error: {}\r\n", e);
                 }
             }
         }
@@ -252,14 +253,14 @@ pub fn run(host: &str, port: u16, sync_interval_ms: u64, max_delay_ms: u32) {
                                     );
                                     let _ = std::io::Write::flush(&mut std::io::stdout());
                                 } else {
-                                    eprintln!(
-                                        "[client] clock not synchronised for seq={}",
+                                    eprint!(
+                                        "[client] clock not synchronised for seq={}\r\n",
                                         evt.seq
                                     );
                                 }
                             } else {
-                                eprintln!(
-                                    "[client] unknown seq in stats batch: {}",
+                                eprint!(
+                                    "[client] unknown seq in stats batch: {}\r\n",
                                     evt.seq
                                 );
                             }
@@ -269,10 +270,10 @@ pub fn run(host: &str, port: u16, sync_interval_ms: u64, max_delay_ms: u32) {
                         clock.on_sync(&sync_pkt);
                     }
                     Ok(other) => {
-                        eprintln!("[client] unexpected packet: {:?}", other);
+                        eprint!("[client] unexpected packet: {:?}\r\n", other);
                     }
                     Err(e) => {
-                        eprintln!("[client] packet parse error: {}", e);
+                        eprint!("[client] packet parse error: {}\r\n", e);
                     }
                 }
             }
@@ -283,12 +284,12 @@ pub fn run(host: &str, port: u16, sync_interval_ms: u64, max_delay_ms: u32) {
                 if exit_time.is_some()
                     && common::now_ms().saturating_sub(exit_time.unwrap()) > 2000
                 {
-                    eprintln!("[client] drain timeout, exiting");
+                    eprint!("[client] drain timeout, exiting\r\n");
                     break;
                 }
             }
             Err(e) => {
-                eprintln!("[client] recv error: {}", e);
+                eprint!("[client] recv error: {}\r\n", e);
                 break;
             }
         }

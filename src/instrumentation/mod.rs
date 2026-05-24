@@ -66,9 +66,10 @@ impl Instrument {
     /// Returns `Some(latency_usec)` on success, or `None` if the clock is not yet synchronised.
     pub fn finish_remote(&self, span: &Span, remote_finish_usec: u64) -> Option<u64> {
         let latency = span.remote_latency_us(remote_finish_usec, &self.clock)?;
+        let clamped_latency = latency.max(0) as u64;
         let mut inner = self.inner.lock().unwrap();
-        inner.aggregator.insert(latency as u64);
-        Some(latency as u64)
+        inner.aggregator.insert(clamped_latency);
+        Some(clamped_latency)
     }
 
     /// Record a latency directly (e.g. computed elsewhere) into the aggregator.
