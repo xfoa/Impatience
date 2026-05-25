@@ -7,7 +7,7 @@ use impatience::net::{
 use impatience::clocks::PeerClock;
 use impatience::net::{HandshakeProgress, Initiator, SyncScheduler};
 use impatience::time;
-use rand::Rng;
+use rand::RngExt;
 use std::io;
 use std::net::UdpSocket;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -153,8 +153,8 @@ pub fn run(host: &str, port: u16, sync_interval_ms: u64, max_delay_ms: u32) {
                     let local_ms = clock_input.local_ms();
                     let span = profiler_input.start("input-to-print", local_ms);
 
-                    let mut rng = rand::thread_rng();
-                    let delay_ms: u32 = rng.gen_range(0..=max_delay_ms);
+                    let mut rng = rand::rng();
+                    let delay_ms: u32 = rng.random_range(0..=max_delay_ms);
 
                     let mut seq_lock = next_seq_input.lock().unwrap();
                     let seq = *seq_lock;
