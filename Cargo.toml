@@ -1,6 +1,6 @@
 [package]
 name = "impatience"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2024"
 authors = ["foax <a@fo.ax>"]
 description = "A library for instrumentation of event-to-event latency over a network"
