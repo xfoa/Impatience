@@ -1,3 +1,4 @@
+/// Format a single-line status report for a probe packet.
 pub fn format_probe_stats(
     label: &str,
     seq: u32,
@@ -18,6 +19,7 @@ pub fn format_probe_stats(
     )
 }
 
+/// Format a single-line status report for a received sync packet.
 pub fn format_sync_stats(
     label: &str,
     min_delta: u32,

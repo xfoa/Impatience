@@ -13,6 +13,7 @@ pub struct LatencyAggregator {
 }
 
 impl LatencyAggregator {
+    /// Create a new aggregator with the given sample capacity.
     pub fn new(capacity: usize) -> Self {
         Self {
             capacity,
@@ -23,7 +24,8 @@ impl LatencyAggregator {
 
     /// Insert a new latency sample in milliseconds.
     ///
-    /// Amortised O(log N) because we binary-search the insert position.
+    /// Amortised O(N) because inserting into a sorted vector requires shifting
+    /// elements to make room.
     pub fn insert(&mut self, latency_ms: u64) {
         if self.ring.len() == self.capacity {
             if let Some(old) = self.ring.pop_front() {
@@ -39,11 +41,13 @@ impl LatencyAggregator {
     }
 
     #[inline]
+    /// Number of samples currently stored.
     pub fn count(&self) -> usize {
         self.sorted.len()
     }
 
     #[inline]
+    /// Returns `true` if no samples have been recorded.
     pub fn is_empty(&self) -> bool {
         self.sorted.is_empty()
     }

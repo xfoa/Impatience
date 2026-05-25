@@ -11,7 +11,7 @@
 //! completion on another, use [`Profiler`](instrumentation::Profiler) with a
 //! [`PeerClock`](clocks::PeerClock):
 //!
-//! ```ignore
+//! ```
 //! use impatience::clocks::PeerClock;
 //! use impatience::instrumentation::Profiler;
 //! use impatience::time;
@@ -23,11 +23,12 @@
 //! // Start a span when the event begins locally.
 //! let mut span = profiler.start("input-to-print", clock.local_ms());
 //!
-//! // ... send event to peer, receive completion timestamp ...
+//! // Simulate receiving a remote completion timestamp.
+//! // In a real app this arrives over the network from the peer.
+//! let remote_finish_ms = clock.local_ms() + 50;
 //!
-//! // Finish the span with the remote completion time.
 //! if let Some(latency_ms) = profiler.finish_remote(&mut span, remote_finish_ms) {
-//!     println!("latency: {} ms", latency_ms);
+//!     assert!(latency_ms >= 50);
 //! }
 //! ```
 //!
@@ -39,26 +40,28 @@
 //! implement [`Probe`](net::Probe) / [`PeerSync`](net::PeerSync) for your
 //! packet types:
 //!
-//! ```ignore
+//! ```
 //! use impatience::clocks::PeerClock;
-//! use impatience::net::{Initiator, Responder, SyncScheduler, Probe, PeerSync};
+//! use impatience::net::{Initiator, Responder, SyncScheduler};
+//! use impatience::net::packets::{Packet, StartClockPacket, SyncPacket};
 //! use impatience::time;
 //!
-//! // Client handshake
+//! // Client: create handshake initiator and get the first packet
 //! let mut hs = Initiator::new(time::now_usec());
-//! socket.send(&hs.initial_packet());
+//! let start_pkt = hs.initial_packet();
+//! let bytes = Packet::StartClock(start_pkt).to_bytes().unwrap();
+//! // ... send `bytes` to the server over UDP ...
 //!
-//! // Server handshake
-//! let (ack, peer_started_at) = Responder::on_start_clock(&start_pkt, time::now_usec());
-//! clock.set_peer_started_at(peer_started_at);
+//! // Server: respond to the StartClock
+//! let start_pkt = StartClockPacket { started_at: 1_000_000 };
+//! let (ack, peer_started_at) = Responder::on_start_clock(&start_pkt, 2_000_000);
+//! assert_eq!(peer_started_at, 1_000_000);
 //!
-//! // Periodic sync
+//! // Client: set up a sync scheduler
+//! let clock = PeerClock::new();
 //! let mut scheduler = SyncScheduler::new(2000, time::now_usec());
-//! if scheduler.should_send(time::now_usec()) {
-//!     let mut pkt = MySyncPacket::default();
-//!     clock.stamp_sync(&mut pkt, time::now_usec());
-//!     socket.send(&pkt);
-//! }
+//! // Not yet time to send (just created)
+//! assert!(!scheduler.should_send(time::now_usec()));
 //! ```
 //!
 //! ## Level 3: Fine-grained clock control (clocks)
@@ -74,8 +77,13 @@
 //! use [`TimeSynchroniser`](timesync::TimeSynchroniser) and
 //! [`Counter24`](timesync::Counter24) directly.
 
+/// Clock abstractions for local and peer time tracking.
 pub mod clocks;
+/// Latency measurement and aggregation instrumentation.
 pub mod instrumentation;
+/// Network protocol helpers: handshake, scheduling, and packet traits.
 pub mod net;
+/// Wall-clock time utilities.
 pub mod time;
+/// Low-level time synchronisation algorithm and counter types.
 pub mod timesync;

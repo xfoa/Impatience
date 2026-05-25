@@ -24,6 +24,7 @@ struct Inner {
 }
 
 impl Profiler {
+    /// Create a profiler with the default aggregator capacity (10,000 samples).
     pub fn new(clock: PeerClock) -> Self {
         Self {
             clock,
@@ -34,6 +35,7 @@ impl Profiler {
         }
     }
 
+    /// Create a profiler with a custom aggregator sample capacity.
     pub fn with_capacity(clock: PeerClock, capacity: usize) -> Self {
         Self {
             clock,

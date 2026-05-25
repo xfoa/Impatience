@@ -2,6 +2,7 @@ use crate::timesync::Counter24;
 use crate::timesync::{TimeSynchroniser, TIME_23_LOST_BITS};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// Current wall-clock time in microseconds since the Unix epoch.
 fn now_usec() -> u64 {
 SystemTime::now()
     .duration_since(UNIX_EPOCH)
@@ -21,6 +22,7 @@ pub struct SyncedClock {
 }
 
 impl SyncedClock {
+    /// Create a new, unstarted clock.
     pub fn new() -> Self {
         Self {
             start_usec: 0,

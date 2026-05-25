@@ -45,6 +45,7 @@ pub struct TimeSynchroniser {
 }
 
 impl TimeSynchroniser {
+    /// Create a new, unsynchronised `TimeSynchroniser`.
     pub fn new() -> Self {
         Self {
             synchronised: false,
@@ -66,8 +67,8 @@ impl TimeSynchroniser {
         self.recalculate();
     }
 
-    /// Convert a local microsecond timestamp into the 24-bit value that should
-    /// be attached to every outgoing datagram.
+    /// Convert a local microsecond timestamp into the 24-bit truncated value
+    /// that should be attached to every outgoing datagram.
     #[inline]
     pub fn local_time_to_datagram_ts24(local_usec: u64) -> u32 {
         ((local_usec >> TIME_23_LOST_BITS) & 0x00ff_ffff) as u32
@@ -107,11 +108,13 @@ impl TimeSynchroniser {
         network_trip_usec
     }
 
+    /// Return the current minimum delta (best sample from the windowed tracker).
     #[inline]
     pub fn min_delta_ts24(&self) -> Counter24 {
         self.windowed_min_ts24_deltas.best()
     }
 
+    /// Return `true` if the synchroniser has enough data to estimate peer time.
     #[inline]
     pub fn is_synchronised(&self) -> bool {
         self.synchronised
@@ -151,6 +154,9 @@ impl TimeSynchroniser {
         Some(local_ts16.wrapping_add(delta_ts16))
     }
 
+    /// Expand a received 16-bit remote timestamp back into a local microsecond value.
+    ///
+    /// `local_usec` is the local wall-clock time at which the 16-bit field was received.
     #[inline]
     pub fn from_local_time_16(local_usec: u64, timestamp16: Counter16) -> u64 {
         Counter64::expand_from_truncated_with_bias(
@@ -177,6 +183,9 @@ impl TimeSynchroniser {
         Some((local_ts23 + delta_ts23).to_unsigned())
     }
 
+    /// Expand a received 23-bit remote timestamp back into a local microsecond value.
+    ///
+    /// `local_usec` is the local wall-clock time at which the 23-bit field was received.
     #[inline]
     pub fn from_local_time_23(local_usec: u64, timestamp23: Counter23) -> u64 {
         Counter64::expand_from_truncated_with_bias(

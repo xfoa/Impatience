@@ -6,7 +6,9 @@ use crate::timesync::Counter24;
 /// Probe packets carry a 24-bit remote-send timestamp that the receiver
 /// passes to [`SyncedClock::update_with_probe`](crate::clocks::SyncedClock::update_with_probe).
 pub trait Probe {
+    /// Return the 24-bit remote-send timestamp from the packet.
     fn remote_send_ts(&self) -> Counter24;
+    /// Set the local timestamp field in the packet.
     fn set_local_ts(&mut self, ts: Counter24);
 }
 
@@ -37,7 +39,9 @@ pub(crate) fn retrieve_probe(
 /// Sync packets carry the sender's current minimum delta, which the
 /// receiver passes to [`SyncedClock::update_with_sync`](crate::clocks::SyncedClock::update_with_sync).
 pub trait PeerSync {
+    /// Return the 24-bit minimum delta timestamp from the packet.
     fn min_delta_ts(&self) -> Counter24;
+    /// Set the minimum delta timestamp in the packet.
     fn set_min_delta_ts(&mut self, ts: Counter24);
 }
 

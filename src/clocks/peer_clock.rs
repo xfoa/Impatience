@@ -20,6 +20,17 @@ macro_rules! safe_cast {
 ///
 /// [`PeerClock`] is cheaply cloneable (backed by [`Arc`]) so it can be
 /// shared between send and receive threads.
+///
+/// # Example
+///
+/// ```
+/// use impatience::clocks::PeerClock;
+///
+/// let clock = PeerClock::new();
+/// clock.start(1_000_000);
+/// assert_eq!(clock.started_at(), 1_000_000);
+/// assert!(!clock.is_synchronised());
+/// ```
 #[derive(Clone, Debug)]
 pub struct PeerClock {
     inner: Arc<Mutex<Inner>>,

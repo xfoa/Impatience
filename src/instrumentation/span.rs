@@ -1,7 +1,7 @@
 use crate::clocks::PeerClock;
 use crate::instrumentation::event::EventId;
 
-/// A measurement span from a local start event to a (potential) remote finish.
+/// A measurement span from a local start event to a potential remote finish.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Span {
     event_id: EventId,
@@ -11,6 +11,7 @@ pub struct Span {
 }
 
 impl Span {
+    /// Create a new span with the given event ID, name, and start time.
     pub fn new(event_id: EventId, name: &'static str, start_local_ms: u32) -> Self {
         Self {
             event_id,
@@ -21,11 +22,13 @@ impl Span {
     }
 
     #[inline]
+    /// Return the unique event identifier for this span.
     pub fn event_id(&self) -> EventId {
         self.event_id
     }
 
     #[inline]
+    /// Return the human-readable name of this span.
     pub fn name(&self) -> &'static str {
         self.name
     }
@@ -36,8 +39,8 @@ impl Span {
     }
 
     /// Local-only elapsed time in milliseconds.
-    /// 
-    /// Stops once finish time has been recorded.
+    ///
+    /// Stops once a finish time has been recorded.
     #[inline]
     pub fn elapsed_ms(&self, clock: &PeerClock) -> u32 {
         match self.finish_local_ms {
@@ -46,6 +49,7 @@ impl Span {
         }
     }
 
+    /// Total elapsed time since the span started, in milliseconds.
     pub fn duration_ms(&self, clock: &PeerClock) -> u32 {
         self.elapsed_ms(clock).saturating_sub(self.start_local_ms)
     }

@@ -4,6 +4,8 @@ use core::convert::TryFrom;
 use paste::paste;
 
 /// Storage requirements for a [`Counter`].
+#[doc(hidden)]
+#[allow(missing_docs)]
 pub trait CounterParams: Copy + Clone + core::fmt::Debug + Default + 'static {
     type Storage: CounterStorage;
     const BITS: u32;
@@ -12,6 +14,8 @@ pub trait CounterParams: Copy + Clone + core::fmt::Debug + Default + 'static {
 }
 
 /// Trait implemented by the primitive unsigned types that can back a [`Counter`].
+#[doc(hidden)]
+#[allow(missing_docs)]
 pub trait CounterStorage:
     Copy
     + Clone
@@ -49,6 +53,8 @@ macro_rules! impl_counter_storage {
 
 impl_counter_storage!(u8, u16, u32, u64);
 
+#[doc(hidden)]
+#[allow(missing_docs)]
 macro_rules! counter_size {
     ($bits:literal,  $storage:ty) => {
         paste! {
@@ -76,6 +82,7 @@ counter_size!(64, u64);
 /// Fixed-bit-width counter with rollover-safe arithmetic and comparison.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Counter<P: CounterParams> {
+    /// The raw storage value, masked to the counter's bit width.
     pub value: P::Storage,
 }
 
@@ -84,6 +91,7 @@ impl<P: CounterParams> Counter<P> {
     pub const MASK: P::Storage = P::MASK;
     pub const MSB: P::Storage = P::MSB;
 
+    /// Create a new counter from a raw storage value, masking to the valid bit width.
     #[inline]
     pub fn new(value: P::Storage) -> Self {
         Self {
@@ -91,16 +99,19 @@ impl<P: CounterParams> Counter<P> {
         }
     }
 
+    /// Return the raw, masked storage value.
     #[inline]
     pub fn to_unsigned(self) -> P::Storage {
         self.value
     }
 
+    /// Wrapping addition within the counter's bit width.
     #[inline]
     pub fn wrapping_add(self, other: Self) -> Self {
         Self::new(self.value.wrapping_add(other.value))
     }
 
+    /// Wrapping subtraction within the counter's bit width.
     #[inline]
     pub fn wrapping_sub(self, other: Self) -> Self {
         Self::new(self.value.wrapping_sub(other.value))
@@ -115,16 +126,19 @@ impl<P: CounterParams> Counter<P> {
         d >= Self::MSB
     }
 
+    /// Circular greater-than.
     #[inline]
     pub fn circ_gt(self, other: Self) -> bool {
         other.circ_lt(self)
     }
 
+    /// Circular less-than or equal.
     #[inline]
     pub fn circ_le(self, other: Self) -> bool {
         !self.circ_gt(other)
     }
 
+    /// Circular greater-than or equal.
     #[inline]
     pub fn circ_ge(self, other: Self) -> bool {
         !self.circ_lt(other)
@@ -192,6 +206,8 @@ impl<P: CounterParams> Counter<P> {
         result
     }
 
+    /// Expand a smaller counter into this larger counter type using a
+    /// recent reference value and zero bias.
     #[inline]
     pub fn expand_from_truncated<Smaller>(recent: Self, smaller: Smaller) -> Self
     where

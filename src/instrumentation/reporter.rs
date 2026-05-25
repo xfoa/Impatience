@@ -4,15 +4,22 @@ use crate::instrumentation::aggregator::LatencyAggregator;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Snapshot {
+    /// Number of samples in the snapshot.
     pub count: usize,
+    /// Minimum observed latency in milliseconds.
     pub min: Option<u64>,
+    /// Maximum observed latency in milliseconds.
     pub max: Option<u64>,
+    /// 50th percentile latency in milliseconds.
     pub p50: Option<u64>,
+    /// 95th percentile latency in milliseconds.
     pub p95: Option<u64>,
+    /// 99th percentile latency in milliseconds.
     pub p99: Option<u64>,
 }
 
 impl Snapshot {
+    /// Create a snapshot from a latency aggregator.
     pub fn from_aggregator(agg: &LatencyAggregator) -> Self {
         Self {
             count: agg.count(),
@@ -72,6 +79,7 @@ impl Snapshot {
 
 /// Trait for pluggable metric output.
 pub trait Reporter {
+    /// Render or transmit the snapshot to the chosen destination.
     fn report(&mut self, snapshot: &Snapshot);
 }
 
