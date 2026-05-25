@@ -2,7 +2,9 @@
 
 A Rust library for measuring event-to-event latency across networked peers with automatic clock synchronisation.
 
-The library is I/O-agnostic: it has zero dependencies on `std::net` or threading. Bring your own UDP socket and event loop. Two example CLI programs (`sync-test` and `latency-demo`) are included to demonstrate real-world usage.
+The library is I/O-agnostic: it has zero dependencies on `std::net` or threading.
+Bring your own UDP socket and event loop.
+Two example CLI programs (`sync-test` and `latency-demo`) are included to demonstrate real-world usage.
 
 ## Features
 
@@ -53,7 +55,9 @@ impatience sync-test --client 192.168.1.5 --port 7340 \
 
 ### `latency-demo`
 
-Measure end-to-end event latency. The client sends keyboard input to the server after a random delay; the server echoes a completion timestamp. Results are printed to the terminal and saved as an HTML report.
+Measure end-to-end event latency.
+The client sends keyboard input to the server after a random delay; the server echoes a completion timestamp.
+Results are printed to the terminal and saved as an HTML report.
 
 ```bash
 # Server
@@ -76,38 +80,48 @@ impatience latency-demo --client 192.168.1.5 --port 7341 \
 
 ### Level 1: Instrumentation
 
-Use [`Profiler`](src/instrumentation/profiler.rs) and [`PeerClock`](src/clocks/peer_clock.rs) for application-level latency tracking. [`Profiler::start`](src/instrumentation/profiler.rs) creates a [`Span`](src/instrumentation/span.rs); [`Profiler::finish_remote`](src/instrumentation/profiler.rs) records the latency when a remote completion timestamp arrives. [`LatencyAggregator`](src/instrumentation/aggregator.rs) and [`Snapshot`](src/instrumentation/reporter.rs) provide percentile statistics and console reporting.
+Use [`Profiler`](src/instrumentation/profiler.rs) and [`PeerClock`](src/clocks/peer_clock.rs) for application-level latency tracking.
+[`Profiler::start`](src/instrumentation/profiler.rs) creates a [`Span`](src/instrumentation/span.rs); [`Profiler::finish_remote`](src/instrumentation/profiler.rs) records the latency when a remote completion timestamp arrives.
+[`LatencyAggregator`](src/instrumentation/aggregator.rs) and [`Snapshot`](src/instrumentation/reporter.rs) provide percentile statistics and console reporting.
 
 ### Level 2: Network Protocol
 
-Use [`net::Initiator`](src/net/handshake.rs) and [`net::Responder`](src/net/handshake.rs) for the two-way handshake that establishes peer start times. [`SyncScheduler`](src/net/sync_scheduler.rs) tracks when to emit periodic sync heartbeats. Packet types ([`Packet`](src/net/packets.rs), [`StartClockPacket`](src/net/packets.rs), [`SyncPacket`](src/net/packets.rs), etc.) are archived with `rkyv` and serialised via [`Packet::to_bytes`](src/net/packets.rs) and [`Packet::from_bytes`](src/net/packets.rs).
+Use [`net::Initiator`](src/net/handshake.rs) and [`net::Responder`](src/net/handshake.rs) for the two-way handshake that establishes peer start times.
+[`SyncScheduler`](src/net/sync_scheduler.rs) tracks when to emit periodic sync heartbeats.
+Packet types ([`Packet`](src/net/packets.rs), [`StartClockPacket`](src/net/packets.rs), [`SyncPacket`](src/net/packets.rs), etc.) are archived with `rkyv` and serialised via [`Packet::to_bytes`](src/net/packets.rs) and [`Packet::from_bytes`](src/net/packets.rs).
 
 ### Level 3: Clock Primitives
 
-Use [`SyncedClock`](src/clocks/synced_clock.rs) when you need raw probe and sync update methods plus correction values without the thread-safe [`PeerClock`](src/clocks/peer_clock.rs) wrapper. It is single-threaded and does not track peer start times; callers must manage thread safety and peer-start tracking themselves.
+Use [`SyncedClock`](src/clocks/synced_clock.rs) when you need raw probe and sync update methods plus correction values without the thread-safe [`PeerClock`](src/clocks/peer_clock.rs) wrapper.
+It is single-threaded and does not track peer start times; callers must manage thread safety and peer-start tracking themselves.
 
 ### Level 4: Algorithm Core
 
-Use [`TimeSynchroniser`](src/timesync/synchroniser.rs) and [`Counter24`](src/timesync/counter.rs) to study or extend the windowed-minimum one-way delay algorithm and rollover-safe fixed-bit-width counter arithmetic. This layer is suitable for porting the algorithm to other languages or experimenting with custom windowing strategies.
+Use [`TimeSynchroniser`](src/timesync/synchroniser.rs) and [`Counter24`](src/timesync/counter.rs) to study or extend the windowed-minimum one-way delay algorithm and rollover-safe fixed-bit-width counter arithmetic.
+This layer is suitable for porting the algorithm to other languages or experimenting with custom windowing strategies.
 
 ## Interoperability
 
 ### Wire Format
 
-Built-in packet types are serialised with [`rkyv`](https://crates.io/crates/rkyv). Non-Rust peers must either link an `rkyv` deserializer or parse the archived bytes directly.
+Built-in packet types are serialised with [`rkyv`](https://crates.io/crates/rkyv).
+Non-Rust peers must either link an `rkyv` deserializer or parse the archived bytes directly.
 
-Custom formats (JSON, Protobuf, etc.) are supported by implementing the [`Probe`](src/net/traits.rs) and [`PeerSync`](src/net/traits.rs) traits. `PeerClock` and `SyncedClock` work with any type that implements these traits, so the built-in packet types are optional.
+Custom formats (JSON, Protobuf, etc.) are supported by implementing the [`Probe`](src/net/traits.rs) and [`PeerSync`](src/net/traits.rs) traits.
+`PeerClock` and `SyncedClock` work with any type that implements these traits, so the built-in packet types are optional.
 
 ### Protocol
 
 Clock synchronisation runs over UDP in two phases:
 
 1. **Handshake**: Client sends `StartClock`, server replies with `AckStartClock`.
-2. **Periodic sync**: Both peers exchange `SyncPacket` containing a 24-bit truncated local timestamp and a minimum one-way-delay estimate. The receiver expands the truncated timestamp back to 64 bits using rollover-safe [`Counter24`](src/timesync/counter.rs) arithmetic.
+2. **Periodic sync**: Both peers exchange `SyncPacket` containing a 24-bit truncated local timestamp and a minimum one-way-delay estimate.
+   The receiver expands the truncated timestamp back to 64 bits using rollover-safe [`Counter24`](src/timesync/counter.rs) arithmetic.
 
 ### Thread Safety
 
-[`PeerClock`](src/clocks/peer_clock.rs) is `Clone + Send + Sync` (backed by `Arc<Mutex<_>>`). The lower-level types (`TimeSynchroniser`, `SyncedClock`, `WindowedMinTS24`) are single-threaded.
+[`PeerClock`](src/clocks/peer_clock.rs) is `Clone + Send + Sync` (backed by `Arc<Mutex<_>>`).
+The lower-level types (`TimeSynchroniser`, `SyncedClock`, `WindowedMinTS24`) are single-threaded.
 
 ## Cargo Features
 
@@ -142,7 +156,7 @@ cargo install impatience
 
 ## License
 
-GPL-3.0-only. See [LICENSE.md](LICENSE.md) for details.
+GPL-3.0, see [LICENSE.md](LICENSE.md) for details.
 
 ## Acknowledgements
 
