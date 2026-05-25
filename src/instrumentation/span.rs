@@ -42,12 +42,12 @@ impl Span {
     pub fn elapsed_ms(&self, clock: &PeerClock) -> u32 {
         match self.finish_local_ms {
             Some(finish_local_ms) => finish_local_ms,
-            None => clock.local_ms() - self.start_local_ms
+            None => clock.local_ms()
         }
     }
 
     pub fn duration_ms(&self, clock: &PeerClock) -> u32 {
-        self.elapsed_ms(clock) - self.start_local_ms
+        self.elapsed_ms(clock).saturating_sub(self.start_local_ms)
     }
 
     /// Compute and record cross-host latency given the remote finish time and a synchronised clock.
@@ -61,7 +61,7 @@ impl Span {
     /// is unknown.
     #[inline]
     pub fn finish_remote(&mut self, finish_remote_ms: u32, clock: &PeerClock) -> Option<u32> {
-        let finish_local_ms = clock.remote_to_local(finish_remote_ms, true).map(|v| {v.max(0) as u32 })?;
+        let finish_local_ms = clock.remote_elapsed_to_local(finish_remote_ms).map(|v| {v.max(0) as u32 })?;
         self.finish_local_ms = Some(finish_local_ms);
         Some(self.duration_ms(clock))
     }

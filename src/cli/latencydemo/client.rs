@@ -1,7 +1,7 @@
 use crate::cli::latencydemo::common;
 use crossterm::event::{Event as CrosstermEvent, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
-use impatience::instrumentation::{Profiler, Span, histogram_svg, scatter_plot_svg};
+use impatience::instrumentation::{Profiler, histogram_svg, scatter_plot_svg};
 use impatience::net::packets::{
     InputEventPacket, Packet, StartClockPacket, SyncPacket,
 };
@@ -143,7 +143,6 @@ pub fn run(host: &str, port: u16, sync_interval_ms: u64, max_delay_ms: u32) {
                     code: KeyCode::Char(c),
                     ..
                 })) => {
-                    let now_usec = common::now_usec();
                     let local_ms = clock_input.local_ms();
                     let span = profiler_input.start("input-to-print", local_ms);
 

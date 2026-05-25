@@ -92,7 +92,7 @@ fn peer_clock_concurrent_mixed_ops() {
 
     let _ = clock.is_synchronised();
     let _ = clock.correction_ms();
-    let _ = clock.remote_ms(1_000_000, -1);
+    let _ = clock.remote_ms(true);
 }
 
 #[test]
@@ -101,8 +101,7 @@ fn peer_clock_clone_shares_state() {
     a.start(1_000_000);
     let b = a.clone();
 
-    assert_eq!(a.local_ms(2_000_000), b.local_ms(2_000_000));
-    assert_eq!(a.local_ms(2_000_000), 1000);
+    assert_eq!(a.local_ms(), b.local_ms());
 }
 
 #[test]

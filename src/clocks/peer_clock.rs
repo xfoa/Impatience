@@ -129,20 +129,32 @@ impl PeerClock {
         Some((inner.clock.started_at() as i64 - peer as i64) / 1000)
     }
 
-    /// Convert a remote time to local time using estimated latency and offset correction.
-    ///
-    /// `initiator` controls how the minimum one-way delay is applied:
-    /// * `true` for the initiating side (client)
-    /// * `false` for the responding side (server)
-    pub fn remote_to_local(&self, remote_time_ms: u32, initiator: bool) -> Option<i64> {
-        let inner = self.inner.lock().unwrap();
+    fn remote_to_local_inner(inner: &Inner, remote_time_ms: u32, owd_sign: i64) -> Option<i64> {
         let peer_started_at = inner.peer_started_at?;
         let correction_usec = inner.clock.correction_usec().unwrap_or(0);
         let min_owd_usec = inner.clock.minimum_one_way_delay_usec();
         let start_delta_usec: i64 = safe_cast!(i64, inner.clock.started_at()) - safe_cast!(i64, peer_started_at);
-        let remote_usec: i64 = remote_time_ms as i64 * 1000 + start_delta_usec + correction_usec + if initiator { -1 } else { 1 } * min_owd_usec as i64;
-        // Round instead of truncating
+        let remote_usec: i64 = remote_time_ms as i64 * 1000 + start_delta_usec + correction_usec + owd_sign * min_owd_usec as i64;
         Some((remote_usec + if remote_usec >= 0 { 500 } else { -500 }) / 1000)
+    }
+
+    fn remote_elapsed_to_local_inner(inner: &Inner, remote_time_ms: u32) -> Option<i64> {
+        let peer_started_at = inner.peer_started_at?;
+        let start_delta_usec: i64 = safe_cast!(i64, inner.clock.started_at()) - safe_cast!(i64, peer_started_at);
+        let remote_usec: i64 = remote_time_ms as i64 * 1000 - start_delta_usec;
+        Some((remote_usec + if remote_usec >= 0 { 500 } else { -500 }) / 1000)
+    }
+
+    /// Convert a remote elapsed time (milliseconds since peer started) to the
+    /// equivalent local elapsed time.
+    ///
+    /// This is used for latency measurement of past events: given a remote
+    /// timestamp recorded at the peer, compute the equivalent local elapsed
+    /// time when that event occurred. This only accounts for the start time
+    /// offset between peers and does not apply one-way delay adjustment.
+    pub fn remote_elapsed_to_local(&self, remote_time_ms: u32) -> Option<i64> {
+        let inner = self.inner.lock().unwrap();
+        Self::remote_elapsed_to_local_inner(&inner, remote_time_ms)
     }
 
     /// Estimate the remote peer's current time in milliseconds.
@@ -153,8 +165,8 @@ impl PeerClock {
     pub fn remote_ms(&self, initiator: bool) -> Option<i64> {
         let inner = self.inner.lock().unwrap();
         let local_ms = inner.clock.local_ms();
-        let remote_ms = self.remote_to_local(local_ms, initiator)?;
-        // Round instead of truncating
+        let owd_sign: i64 = if initiator { -1 } else { 1 };
+        let remote_ms = Self::remote_to_local_inner(&inner, local_ms, owd_sign)?;
         Some((remote_ms + if remote_ms >= 0 { 500 } else { -500 }) / 1000)
     }
 }
@@ -164,3 +176,4 @@ impl Default for PeerClock {
         Self::new()
     }
 }
+

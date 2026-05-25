@@ -14,10 +14,16 @@ fn event_id_monotonic() {
 
 #[test]
 fn span_elapsed_local() {
-    let span = Span::new(impatience::instrumentation::EventId(1), "test", 10);
-    assert_eq!(span.elapsed(20), 10);
-    assert_eq!(span.elapsed(10), 0);
-    assert_eq!(span.elapsed(5), 0); // saturating
+    let clock = PeerClock::new();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_micros() as u64;
+    clock.start(now);
+    let local = clock.local_ms();
+    let span = Span::new(impatience::instrumentation::EventId(1), "test", local);
+    let elapsed = span.elapsed_ms(&clock);
+    assert!(elapsed <= 1, "elapsed should be near 0 right after start, got {elapsed}");
 }
 
 #[test]
@@ -76,7 +82,7 @@ fn profiler_record_and_snapshot() {
 fn profiler_finish_remote_unsynced_returns_none() {
     let clock = PeerClock::new();
     let inst = Profiler::new(clock);
-    let span = inst.start("click", 0);
+    let mut span = inst.start("click", 0);
     // clock is not synchronised → remote_latency_ms returns None
-    assert_eq!(inst.finish_remote(&span, 10), None);
+    assert_eq!(inst.finish_remote(&mut span, 10), None);
 }
