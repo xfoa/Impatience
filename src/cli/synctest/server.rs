@@ -1,6 +1,7 @@
 use impatience::clocks::{format_probe_stats, format_sync_stats};
 use impatience::net::packets::{Packet, PongPacket, SyncPacket};
-use impatience::net::{PeerClock, Responder, SyncScheduler};
+use impatience::clocks::PeerClock;
+use impatience::net::{Responder, SyncScheduler};
 use impatience::time;
 use std::io;
 use std::net::{SocketAddr, UdpSocket};

@@ -18,7 +18,8 @@ impl fmt::Display for EventId {
 /// Carries a stable ID, a human-readable name, and the local wall-clock time
 /// at which it occurred.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Event {
+#[allow(dead_code)]
+pub(crate) struct Event {
     pub id: EventId,
     pub name: &'static str,
     pub local_ts: u64,

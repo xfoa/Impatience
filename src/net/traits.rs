@@ -14,7 +14,7 @@ pub trait Probe {
 /// Stamp `header` with the local probe timestamp derived from `now_usec`.
 ///
 /// Works with any [`Probe`] implementor.
-pub fn apply_probe(
+pub(crate) fn apply_probe(
     clock: &SyncedClock,
     header: &mut impl Probe,
     now_usec: u64,
@@ -25,7 +25,7 @@ pub fn apply_probe(
 /// Consume a remote probe timestamp from `header` and update the clock.
 ///
 /// Works with any [`Probe`] implementor.
-pub fn retrieve_probe(
+pub(crate) fn retrieve_probe(
     clock: &mut SyncedClock,
     header: &impl Probe,
     local_recv_usec: u64,
@@ -45,13 +45,13 @@ pub trait PeerSync {
 /// Stamp `header` with the current sync delta derived from `clock`.
 ///
 /// Works with any [`PeerSync`] implementor.
-pub fn apply_peer_sync(clock: &SyncedClock, header: &mut impl PeerSync) {
+pub(crate) fn apply_peer_sync(clock: &SyncedClock, header: &mut impl PeerSync) {
     header.set_min_delta_ts(clock.get_sync_delta());
 }
 
 /// Consume a peer sync delta from `header` and update the clock.
 ///
 /// Works with any [`PeerSync`] implementor.
-pub fn retrieve_peer_sync(clock: &mut SyncedClock, header: &impl PeerSync) {
+pub(crate) fn retrieve_peer_sync(clock: &mut SyncedClock, header: &impl PeerSync) {
     clock.update_with_sync(header.min_delta_ts());
 }

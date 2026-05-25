@@ -4,7 +4,8 @@ use impatience::instrumentation::{Profiler, histogram_svg, scatter_plot_svg};
 use impatience::net::packets::{
     InputEventPacket, Packet, SyncPacket,
 };
-use impatience::net::{HandshakeProgress, Initiator, PeerClock, SyncScheduler};
+use impatience::clocks::PeerClock;
+use impatience::net::{HandshakeProgress, Initiator, SyncScheduler};
 use impatience::time;
 use rand::Rng;
 use std::io;
