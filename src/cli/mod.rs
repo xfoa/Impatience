@@ -1,3 +1,3 @@
 pub mod interface;
-pub mod latencydemo;
-pub mod synctest;
+pub mod latency_demo;
+pub mod sync_test;

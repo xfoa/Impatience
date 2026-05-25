@@ -7,9 +7,9 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Synctest(args) => {
+        Commands::SyncTest(args) => {
             if let Some(host) = args.client {
-                cli::synctest::client::run(
+                cli::sync_test::client::run(
                     &host,
                     args.port,
                     args.count,
@@ -17,17 +17,17 @@ fn main() {
                     args.sync_interval,
                 );
             } else if let Some(bind) = args.server {
-                cli::synctest::server::run(&bind, args.port, args.sync_interval);
+                cli::sync_test::server::run(&bind, args.port, args.sync_interval);
             } else {
                 eprintln!("Error: must specify --server or --client");
                 std::process::exit(1);
             }
         }
-        Commands::Latencydemo(args) => {
+        Commands::LatencyDemo(args) => {
             if let Some(host) = args.client {
-                cli::latencydemo::client::run(&host, args.port, args.sync_interval, args.max_delay);
+                cli::latency_demo::client::run(&host, args.port, args.sync_interval, args.max_delay);
             } else if let Some(bind) = args.server {
-                cli::latencydemo::server::run(&bind, args.port, args.sync_interval);
+                cli::latency_demo::server::run(&bind, args.port, args.sync_interval);
             } else {
                 eprintln!("Error: must specify --server or --client");
                 std::process::exit(1);

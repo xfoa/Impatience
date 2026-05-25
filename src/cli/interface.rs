@@ -10,15 +10,16 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    Synctest(Synctest),
+    SyncTest(SyncTest),
     #[command(name = "latency-demo")]
-    Latencydemo(Latencydemo),
+    LatencyDemo(LatencyDemo),
 }
 
 #[derive(Parser)]
+#[command(name = "sync-test")]
 #[command(about = "Run a clock-synchronisation test over UDP")]
 #[command(group = ArgGroup::new("mode").required(true).args(["server", "client"]))]
-pub struct Synctest {
+pub struct SyncTest {
     #[arg(
         short = 's',
         long = "server",
@@ -99,7 +100,7 @@ impl FromStr for Count {
 #[command(name = "latency-demo")]
 #[command(about = "Run an event-to-event latency demo over UDP")]
 #[command(group = ArgGroup::new("mode").required(true).args(["server", "client"]))]
-pub struct Latencydemo {
+pub struct LatencyDemo {
     #[arg(
         short = 's',
         long = "server",

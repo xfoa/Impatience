@@ -9,7 +9,7 @@ A Rust library and CLI toolkit for measuring event-to-event latency across netwo
 - UDP-based clock synchronisation using a windowed-minimum one-way delay algorithm with 24-bit truncated timestamps
 - Zero-copy packet serialisation via [`rkyv`](https://crates.io/crates/rkyv)
 - Handshake state machine (`Initiator` / `Responder`) for non-blocking clock establishment
-- CLI example programs: `synctest` (clock sync debugging) and `latency-demo` (end-to-end latency measurement)
+- CLI example programs: `sync-test` (clock sync debugging) and `latency-demo` (end-to-end latency measurement)
 
 ## Installation
 
@@ -47,16 +47,16 @@ if let Some(latency_ms) = profiler.finish_remote(&mut span, remote_finish_ms) {
 
 ## CLI Usage
 
-### `synctest`
+### `sync-test`
 
 A clock synchronisation test over UDP. The server listens for handshake and sync packets; the client initiates the handshake and sends periodic pings.
 
 ```bash
 # Server
-impatience synctest --server 0.0.0.0 --port 7340
+impatience sync-test --server 0.0.0.0 --port 7340
 
 # Client
-impatience synctest --client 192.168.1.5 --port 7340 \
+impatience sync-test --client 192.168.1.5 --port 7340 \
     --count 100 --interval 400 --sync-interval 2000
 ```
 
@@ -150,7 +150,7 @@ impatience
 |-- net               # Handshake, SyncScheduler, packet traits, packet types
 |-- timesync          # Counter types, TimeSynchroniser, WindowedMinTS24
 |-- time              # Wall-clock time utilities
-|-- cli               # Binary: synctest and latency-demo commands
+|-- cli               # Binary: sync-test and latency-demo commands
 ```
 
 ## Requirements
