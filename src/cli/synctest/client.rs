@@ -1,6 +1,6 @@
 use crate::cli::interface::Count;
 use impatience::clocks::{format_probe_stats, format_sync_stats};
-use impatience::net::packets::{Packet, PingPacket, SyncPacket};
+use impatience::net::{Packet, PingPacket, SyncPacket};
 use impatience::clocks::PeerClock;
 use impatience::net::{HandshakeProgress, Initiator, SyncScheduler};
 use impatience::time;

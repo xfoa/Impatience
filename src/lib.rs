@@ -43,7 +43,7 @@
 //! ```
 //! use impatience::clocks::PeerClock;
 //! use impatience::net::{Initiator, Responder, SyncScheduler};
-//! use impatience::net::packets::{Packet, StartClockPacket, SyncPacket};
+//! use impatience::net::{Packet, StartClockPacket, SyncPacket};
 //! use impatience::time;
 //!
 //! // Client: create handshake initiator and get the first packet

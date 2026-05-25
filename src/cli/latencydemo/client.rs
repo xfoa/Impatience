@@ -1,7 +1,7 @@
 use crossterm::event::{Event as CrosstermEvent, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use impatience::instrumentation::{Profiler, histogram_svg, scatter_plot_svg};
-use impatience::net::packets::{
+use impatience::net::{
     InputEventPacket, Packet, SyncPacket,
 };
 use impatience::clocks::PeerClock;

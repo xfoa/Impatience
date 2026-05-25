@@ -1,4 +1,4 @@
-use crate::net::packets::{AckStartClockPacket, Packet, StartClockPacket};
+use crate::net::{AckStartClockPacket, Packet, StartClockPacket};
 
 /// Result of feeding a received packet into the handshake state machine.
 pub enum HandshakeProgress {
@@ -22,7 +22,7 @@ pub enum HandshakeProgress {
 ///
 /// ```
 /// use impatience::net::{Initiator, HandshakeProgress};
-/// use impatience::net::packets::{Packet, AckStartClockPacket};
+/// use impatience::net::{Packet, AckStartClockPacket};
 ///
 /// let mut hs = Initiator::new(1_000_000);
 /// let pkt = hs.initial_packet();
@@ -103,7 +103,7 @@ impl Initiator {
 ///
 /// ```
 /// use impatience::net::Responder;
-/// use impatience::net::packets::StartClockPacket;
+/// use impatience::net::StartClockPacket;
 ///
 /// let pkt = StartClockPacket { started_at: 1_000_000 };
 /// let (ack, peer_started_at) = Responder::on_start_clock(&pkt, 2_000_000);

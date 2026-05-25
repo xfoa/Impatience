@@ -1,6 +1,6 @@
 use impatience::clocks::PeerClock;
 use impatience::instrumentation::Profiler;
-use impatience::net::packets::{PingPacket, SyncPacket};
+use impatience::net::{PingPacket, SyncPacket};
 use impatience::net::PeerSync;
 
 fn is_near(x: i64, y: i64, limit: i64) -> bool {

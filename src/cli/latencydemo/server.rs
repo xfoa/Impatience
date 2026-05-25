@@ -1,4 +1,4 @@
-use impatience::net::packets::{Packet, StatsBatchPacket, StatsEvent, SyncPacket};
+use impatience::net::{Packet, StatsBatchPacket, StatsEvent, SyncPacket};
 use impatience::clocks::PeerClock;
 use impatience::net::{Responder, SyncScheduler};
 use impatience::time;
