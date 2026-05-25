@@ -77,13 +77,22 @@
 //! use [`TimeSynchroniser`](timesync::TimeSynchroniser) and
 //! [`Counter24`](timesync::Counter24) directly.
 
+#![cfg_attr(not(feature = "std"), no_std)]
+
+#[cfg(feature = "alloc")]
+extern crate alloc;
+
 /// Clock abstractions for local and peer time tracking.
+#[cfg(feature = "std")]
 pub mod clocks;
 /// Latency measurement and aggregation instrumentation.
+#[cfg(feature = "std")]
 pub mod instrumentation;
 /// Network protocol helpers: handshake, scheduling, and packet traits.
+#[cfg(feature = "std")]
 pub mod net;
 /// Wall-clock time utilities.
+#[cfg(feature = "std")]
 pub mod time;
 /// Low-level time synchronisation algorithm and counter types.
 pub mod timesync;

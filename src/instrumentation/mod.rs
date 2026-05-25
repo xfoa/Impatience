@@ -8,6 +8,7 @@ pub mod reporter;
 /// Measurement span type.
 pub mod span;
 /// SVG chart generation.
+#[cfg(feature = "svg")]
 pub mod svg;
 /// Event tracking with pending spans.
 pub mod tracker;
@@ -17,6 +18,7 @@ pub use event::EventId;
 pub use profiler::Profiler;
 pub use reporter::{Reporter, Snapshot};
 pub use span::Span;
+#[cfg(feature = "svg")]
 pub use svg::{histogram_svg, scatter_plot_svg};
 pub use tracker::EventTracker;
 

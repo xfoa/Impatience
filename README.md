@@ -10,27 +10,8 @@ The library is I/O-agnostic: it has zero dependencies on `std::net` or threading
 - **UDP-based clock sync** using a windowed-minimum one-way-delay estimator with 24-bit truncated timestamps
 - **Zero-copy serialisation** of packet types via [`rkyv`](https://crates.io/crates/rkyv)
 - **Non-blocking handshake** (`Initiator` / `Responder`) for establishing peer clocks
-- **Optional features**: `serde` (enabled by default), `uncertainty` (for confidence-interval calculations)
-
-## Installation
-
-```toml
-[dependencies]
-impatience = "1.0"
-```
-
-Enable the `uncertainty` feature for statistical confidence intervals:
-
-```toml
-[dependencies]
-impatience = { version = "1.0", features = ["uncertainty"] }
-```
-
-The CLI tools can be installed with:
-
-```bash
-cargo install impatience
-```
+- **`no_std` support** at the `timesync` algorithm layer
+- **Optional features**: `serde`, `uncertainty`, `svg` (see below)
 
 ## Quick Start
 
@@ -128,6 +109,43 @@ Clock synchronisation runs over UDP in two phases:
 
 [`PeerClock`](src/clocks/peer_clock.rs) is `Clone + Send + Sync` (backed by `Arc<Mutex<_>>`). The lower-level types (`TimeSynchroniser`, `SyncedClock`, `WindowedMinTS24`) are single-threaded.
 
+## Cargo Features
+
+| Feature | Default | Description |
+|---|---|---|
+| `std` | yes | Enables `time`, `clocks`, `net`, `instrumentation`, and `rkyv` packet serialisation |
+| `alloc` | implied by `std` | Foundation for `no_std` environments with heap allocation |
+| `cli` | yes | Builds the `impatience` binary with the `sync-test` and `latency-demo` tools |
+| `svg` | yes | SVG chart generation (`histogram_svg`, `scatter_plot_svg`) |
+| `serde` | yes | `Serialize`/`Deserialize` derives on select types (e.g. `Snapshot`) |
+| `uncertainty` | no | Statistical confidence intervals via `statrs` |
+
+Use in `no_std` environments (only the `timesync` module is available):
+
+```toml
+[dependencies]
+impatience = { version = "1.0", default-features = false }
+```
+
+Enable the `uncertainty` feature for statistical confidence intervals:
+
+```toml
+[dependencies]
+impatience = { version = "1.0", features = ["uncertainty"] }
+```
+
+The CLI tools can be installed with:
+
+```bash
+cargo install impatience
+```
+
 ## License
 
 GPL-3.0-only. See [LICENSE.md](LICENSE.md) for details.
+
+## Acknowledgements
+
+This project used the [TimeSync](https://github.com/catid/TimeSync) library by [Chris Taylor](https://github.com/catid)
+as a basis.
+Indeed, the [ timesync ](src/timesync) module is more or less a straight port of that library to Rust.
