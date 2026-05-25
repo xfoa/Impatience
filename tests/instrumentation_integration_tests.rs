@@ -69,8 +69,9 @@ fn profiler_event_to_event_latency() {
 
     // Simulate network delay: advance by owd_usec (5000 usec).
     // B receives at global 205_000 usec.
-    // B started at global 10_000, so B's elapsed time = 195_000 usec = 195 ms.
-    let finish_b_ms = 195u32;
+    // B's wall clock = 205_000 + 10_000 = 215_000 usec.
+    // B started at wall clock 10_000, so B's elapsed time = 205_000 usec = 205 ms.
+    let finish_b_ms = 205u32;
 
     // B finishes the event at its local elapsed time.
     // Use inst_a (the local clock that started the span) to compute latency.

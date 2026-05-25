@@ -140,8 +140,9 @@ impl PeerClock {
 
     fn remote_elapsed_to_local_inner(inner: &Inner, remote_time_ms: u32) -> Option<i64> {
         let peer_started_at = inner.peer_started_at?;
+        let correction_usec = inner.clock.correction_usec().unwrap_or(0);
         let start_delta_usec: i64 = safe_cast!(i64, inner.clock.started_at()) - safe_cast!(i64, peer_started_at);
-        let remote_usec: i64 = remote_time_ms as i64 * 1000 - start_delta_usec;
+        let remote_usec: i64 = remote_time_ms as i64 * 1000 - start_delta_usec - correction_usec;
         Some((remote_usec + if remote_usec >= 0 { 500 } else { -500 }) / 1000)
     }
 
