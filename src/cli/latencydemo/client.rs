@@ -241,7 +241,7 @@ pub fn run(host: &str, port: u16, sync_interval_ms: u64, max_delay_ms: u32) {
                                 if let Some(latency_ms) =
                                     profiler.finish_remote(&mut span, evt.server_print_ms)
                                 {
-                                    let print_ms = evt.server_print_ms;
+                                    let print_ms = span.finish_local_ms().unwrap_or(0);
                                     per_event_latencies.push((evt.seq, delay_ms, latency_ms, ch));
                                     print!(
                                         "[client] print seq={} ch='{}' input_time={}ms print_time={}ms random_delay={}ms event_latency={}ms\r\n",
