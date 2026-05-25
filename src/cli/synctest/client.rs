@@ -1,13 +1,16 @@
 use crate::cli::interface::Count;
-use crate::cli::synctest::common;
-use impatience::net::packets::{Packet, PingPacket, StartClockPacket, SyncPacket};
-use impatience::net::PeerClock;
+use impatience::clocks::{format_probe_stats, format_sync_stats};
+use impatience::net::packets::{Packet, PingPacket, SyncPacket};
+use impatience::net::{HandshakeProgress, Initiator, PeerClock, SyncScheduler};
+use impatience::time;
 use std::io;
 use std::net::UdpSocket;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
+
+const MAX_MSG_SIZE: usize = 1024;
 
 pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_ms: u64) {
     let socket = UdpSocket::bind("0.0.0.0:0").expect("client bind failed");
@@ -19,32 +22,37 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
         .expect("set_read_timeout failed");
 
     let clock = PeerClock::new();
-    let started_at = common::now_usec();
+    let started_at = time::now_usec();
     clock.start(started_at);
 
     // --- StartClock handshake ---
+    let mut hs = Initiator::new(started_at);
+    let pkt = hs.initial_packet();
     eprintln!("[client] sending StartClock with started_at={started_at}");
-    let pkt = StartClockPacket { started_at };
     let bytes = Packet::StartClock(pkt)
         .to_bytes()
         .expect("serialise StartClock");
     socket.send(&bytes).expect("send StartClock");
 
-    let mut buf = [0u8; common::MAX_MSG_SIZE];
+    let mut buf = [0u8; MAX_MSG_SIZE];
     let mut acked = false;
-    let mut handshake_retries = 0;
-    while !acked && handshake_retries < 50 {
+    while !acked && !hs.exhausted() {
         match socket.recv(&mut buf) {
             Ok(n) => {
                 eprintln!("[client] received {n} bytes");
                 match Packet::from_bytes(&buf[..n]) {
-                    Ok(Packet::AckStartClock(ack)) => {
-                        eprintln!("[client] got AckStartClock from {host}:{port} peer_started_at={}", ack.started_at);
-                        clock.set_peer_started_at(ack.started_at);
-                        acked = true;
-                    }
-                    Ok(other) => {
-                        eprintln!("[client] unexpected packet during handshake: {other:?}");
+                    Ok(pkt) => {
+                        match hs.on_receive(&pkt) {
+                            HandshakeProgress::Complete { peer_started_at } => {
+                                eprintln!("[client] got AckStartClock from {host}:{port} peer_started_at={peer_started_at}");
+                                clock.set_peer_started_at(peer_started_at);
+                                acked = true;
+                            }
+                            HandshakeProgress::Pending => {}
+                            HandshakeProgress::Ignored => {
+                                eprintln!("[client] unexpected packet during handshake: {pkt:?}");
+                            }
+                        }
                     }
                     Err(e) => {
                         eprintln!("[client] packet parse error: {e}");
@@ -55,8 +63,8 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
                 if e.kind() == io::ErrorKind::WouldBlock
                     || e.kind() == io::ErrorKind::TimedOut =>
             {
-                handshake_retries += 1;
-                eprintln!("[client] handshake timeout #{handshake_retries}, retrying StartClock");
+                hs.record_retry();
+                eprintln!("[client] handshake timeout #{}, retrying StartClock", hs.retries());
                 socket.send(&bytes).expect("retry StartClock");
             }
             Err(e) => {
@@ -80,7 +88,7 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
 
     let send_handle = thread::spawn(move || {
         let mut seq: u32 = 0;
-        let mut next_sync = started_at.saturating_add(sync_interval_ms * 1000);
+        let mut sync_scheduler = SyncScheduler::new(sync_interval_ms, time::now_usec());
 
         let max_pings = match count {
             Count::Finite(n) => n,
@@ -90,15 +98,14 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
         eprintln!("[client] send thread: max_pings={max_pings}, interval_ms={interval_ms}");
 
         for _ in 0..max_pings {
-            let now = common::now_usec();
+            let now = time::now_usec();
 
-            if now >= next_sync {
+            if sync_scheduler.should_send(now) {
                 let mut pkt = SyncPacket::default();
                 clock_send.stamp_sync(&mut pkt, now);
                 if let Ok(bytes) = Packet::Sync(pkt).to_bytes() {
                     let _ = socket_send.send(&bytes);
                 }
-                next_sync = now.saturating_add(sync_interval_ms * 1000);
             }
 
             let mut pkt = PingPacket::default();
@@ -122,9 +129,9 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
     loop {
         if send_done.load(Ordering::SeqCst) {
             if send_done_time.is_none() {
-                send_done_time = Some(common::now_usec());
+                send_done_time = Some(time::now_usec());
                 eprintln!("[client] send_done detected, starting 2s grace period");
-            } else if common::now_usec().saturating_sub(send_done_time.unwrap()) > 2_000_000 {
+            } else if time::now_usec().saturating_sub(send_done_time.unwrap()) > 2_000_000 {
                 eprintln!("[client] grace period expired, exiting");
                 break;
             }
@@ -134,17 +141,17 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
             Ok(n) => {
                 match Packet::from_bytes(&buf[..n]) {
                     Ok(Packet::Pong(pong)) => {
-                        let now = common::now_usec();
+                        let now = time::now_usec();
                         let _owd = clock.on_probe(&pong, now);
                         let local_ms = clock.local_ms();
                         let correction = clock.correction_ms();
                         let min_delta = clock.min_delta().to_unsigned();
                         let synced = clock.is_synchronised();
                         let start_delta_ms = clock.start_delta_ms();
-                        let remote_ms = clock.remote_ms( true);
+                        let remote_ms = clock.remote_ms(true);
                         println!(
                             "{}",
-                            common::format_probe_stats(
+                            format_probe_stats(
                                 "pong",
                                 pong.ping_seq,
                                 local_ms,
@@ -163,7 +170,7 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
                         let start_delta_ms = clock.start_delta_ms();
                         println!(
                             "{}",
-                            common::format_sync_stats(
+                            format_sync_stats(
                                 "client",
                                 min_delta,
                                 synced,
@@ -184,7 +191,7 @@ pub fn run(host: &str, port: u16, count: Count, interval_ms: u64, sync_interval_
                     || e.kind() == io::ErrorKind::TimedOut =>
             {
                 if send_done_time.is_some()
-                    && common::now_usec().saturating_sub(send_done_time.unwrap()) > 2_000_000
+                    && time::now_usec().saturating_sub(send_done_time.unwrap()) > 2_000_000
                 {
                     eprintln!("[client] timeout after send_done, exiting");
                     break;

@@ -1,12 +1,14 @@
-use crate::cli::latencydemo::common;
-use impatience::net::packets::{AckStartClockPacket, Packet, StatsBatchPacket, StatsEvent, SyncPacket};
-use impatience::net::PeerClock;
+use impatience::net::packets::{Packet, StatsBatchPacket, StatsEvent, SyncPacket};
+use impatience::net::{PeerClock, Responder, SyncScheduler};
+use impatience::time;
 use std::io;
 use std::net::{SocketAddr, UdpSocket};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
+
+const MAX_MSG_SIZE: usize = 1024;
 
 pub fn run(bind_addr: &str, port: u16, sync_interval_ms: u64) {
     let socket = UdpSocket::bind(format!("{}:{}", bind_addr, port)).expect("server bind failed");
@@ -50,7 +52,7 @@ pub fn run(bind_addr: &str, port: u16, sync_interval_ms: u64) {
                 drop(events);
 
                 let mut pkt = batch;
-                let now = common::now_usec();
+                let now = time::now_usec();
                 clock_send.stamp_probe(&mut pkt, now);
 
                 if let Ok(bytes) = Packet::StatsBatch(pkt).to_bytes() {
@@ -66,10 +68,16 @@ pub fn run(bind_addr: &str, port: u16, sync_interval_ms: u64) {
     let clock_started_sync = Arc::clone(&clock_started);
 
     let _sync_handle = thread::spawn(move || {
+        let mut scheduler = SyncScheduler::new(sync_interval_ms, time::now_usec());
         loop {
-            thread::sleep(Duration::from_millis(sync_interval_ms));
+            thread::sleep(Duration::from_millis(10));
 
             if !clock_started_sync.load(Ordering::SeqCst) {
+                continue;
+            }
+
+            let now = time::now_usec();
+            if !scheduler.should_send(now) {
                 continue;
             }
 
@@ -77,7 +85,6 @@ pub fn run(bind_addr: &str, port: u16, sync_interval_ms: u64) {
             if let Some(addr) = *addr_opt {
                 drop(addr_opt);
                 let mut pkt = SyncPacket::default();
-                let now = common::now_usec();
                 clock_sync.stamp_sync(&mut pkt, now);
 
                 if let Ok(bytes) = Packet::Sync(pkt).to_bytes() {
@@ -87,7 +94,7 @@ pub fn run(bind_addr: &str, port: u16, sync_interval_ms: u64) {
         }
     });
 
-    let mut buf = [0u8; common::MAX_MSG_SIZE];
+    let mut buf = [0u8; MAX_MSG_SIZE];
 
     loop {
         match socket.recv_from(&mut buf) {
@@ -96,21 +103,21 @@ pub fn run(bind_addr: &str, port: u16, sync_interval_ms: u64) {
 
                 match Packet::from_bytes(&buf[..n]) {
                     Ok(Packet::StartClock(start_pkt)) => {
-                        let now = common::now_usec();
+                        let now = time::now_usec();
                         eprintln!("[server] received StartClock from {} peer_started_at={}", addr, start_pkt.started_at);
 
                         clock.start(now);
                         clock_started.store(true, Ordering::SeqCst);
-                        clock.set_peer_started_at(start_pkt.started_at);
+                        let (ack, peer_started_at) = Responder::on_start_clock(&start_pkt, now);
+                        clock.set_peer_started_at(peer_started_at);
 
-                        let ack = AckStartClockPacket { started_at: now };
                         if let Ok(bytes) = Packet::AckStartClock(ack).to_bytes() {
                             let _ = socket.send_to(&bytes, addr);
                             eprintln!("[server] sent AckStartClock to {} our_started_at={}", addr, now);
                         }
                     }
                     Ok(Packet::InputEvent(evt)) => {
-                        let now_usec = common::now_usec();
+                        let now_usec = time::now_usec();
                         let _owd = clock.on_probe(&evt, now_usec);
 
                         let ch = evt.ch as char;
