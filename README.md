@@ -128,10 +128,6 @@ Clock synchronisation runs over UDP in two phases:
 
 [`PeerClock`](src/clocks/peer_clock.rs) is `Clone + Send + Sync` (backed by `Arc<Mutex<_>>`). The lower-level types (`TimeSynchroniser`, `SyncedClock`, `WindowedMinTS24`) are single-threaded.
 
-## Requirements
-
-- Rust 1.95 or later
-
 ## License
 
 GPL-3.0-only. See [LICENSE.md](LICENSE.md) for details.
